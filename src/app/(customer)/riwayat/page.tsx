@@ -1,103 +1,206 @@
 "use client";
 
 import Link from "next/link";
-import { useOrderStore } from "@/store/order-store";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  ChevronRight,
+  Clock,
+  Loader2,
+  Search,
+  ShoppingBag,
+} from "lucide-react";
+import { CUSTOMER_PHONE_KEY, fetchOrders } from "@/lib/order-api";
 import { formatPrice, formatDate, ORDER_STATUS_MAP } from "@/lib/mock-data";
-import { Clock, ChevronRight, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { OrderCardSkeleton } from "@/components/skeletons";
-import { useState, useEffect } from "react";
+import { ProductImage } from "@/components/product-image";
+import { createClient } from "@/utils/supabase/client";
+import { Order } from "@/types";
 
 export default function RiwayatPage() {
-  const orders = useOrderStore((s) => s.orders);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [phone, setPhone] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Simulate loading state
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(t);
+    const savedPhone = window.localStorage.getItem(CUSTOMER_PHONE_KEY) ?? "";
+    setPhone(savedPhone);
+    setPhoneInput(savedPhone);
+    if (!savedPhone) setLoading(false);
   }, []);
 
+  const loadOrders = useCallback(async (targetPhone: string) => {
+    if (!targetPhone) return;
+
+    setLoading(true);
+    try {
+      const result = await fetchOrders(targetPhone);
+      setOrders(result.orders);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memuat riwayat pesanan.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!phone) return;
+    void loadOrders(phone);
+  }, [phone, loadOrders]);
+
+  useEffect(() => {
+    if (!phone) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`customer-history-${phone}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `customer_phone=eq.${phone}`,
+        },
+        () => void loadOrders(phone)
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [phone, loadOrders]);
+
+  const handlePhoneSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalized = phoneInput.replace(/\D/g, "");
+
+    if (normalized.length < 10) {
+      setError("Masukkan nomor WhatsApp yang valid.");
+      return;
+    }
+
+    window.localStorage.setItem(CUSTOMER_PHONE_KEY, normalized);
+    setPhone(normalized);
+    setPhoneInput(normalized);
+  };
+
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Header */}
-      <div className="bg-[#2D5016] dark:bg-[#1a3209] px-4 py-5">
-        <h1 className="text-white font-bold text-xl">Riwayat Pesanan</h1>
-        <p className="text-white/60 text-sm mt-0.5">Semua pesananmu ada di sini</p>
+    <div className="min-h-screen overflow-x-hidden bg-neutral-50 pb-28 dark:bg-neutral-950">
+      <div className="bg-[#2D5016] px-4 py-5 dark:bg-[#1a3209]">
+        <div className="mx-auto max-w-5xl">
+          <h1 className="text-xl font-bold text-white">Riwayat Pesanan</h1>
+          <p className="mt-0.5 text-sm text-white/60">
+            Cek pesanan lintas device memakai nomor WhatsApp.
+          </p>
+        </div>
       </div>
 
-      <div className="px-4 pt-5 pb-6">
+      <div className="mx-auto max-w-5xl px-4 pt-5">
+        <form
+          onSubmit={handlePhoneSubmit}
+          className="mb-4 rounded-xl border border-neutral-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
+        >
+          <label className="mb-2 block text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+            Nomor WhatsApp Pemesan
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+              <input
+                value={phoneInput}
+                onChange={(event) => setPhoneInput(event.target.value)}
+                type="tel"
+                placeholder="08123456789"
+                className="w-full rounded-xl border border-neutral-200 bg-neutral-50 py-3 pl-9 pr-4 text-sm outline-none transition focus:ring-2 focus:ring-primary/30 dark:border-neutral-700 dark:bg-neutral-800"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-xl bg-[#2D5016] px-5 py-3 text-sm font-bold text-white"
+            >
+              Cari Riwayat
+            </button>
+          </div>
+          {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+        </form>
+
         {loading ? (
-          <div className="space-y-3">
-            <OrderCardSkeleton />
-            <OrderCardSkeleton />
-            <OrderCardSkeleton />
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-[#2D5016]" />
           </div>
         ) : orders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-neutral-400">
-            <ShoppingBag className="w-16 h-16 mb-4 opacity-30" />
-            <p className="font-bold text-lg text-neutral-600 dark:text-neutral-300">
+          <div className="flex flex-col items-center justify-center py-20 text-center text-neutral-400">
+            <ShoppingBag className="mb-4 h-16 w-16 opacity-30" />
+            <p className="text-lg font-bold text-neutral-600 dark:text-neutral-300">
               Belum ada pesanan
             </p>
-            <p className="text-sm text-center mt-1 mb-6">
-              Yuk, pesan Bakso Kalijogo sekarang!
+            <p className="mb-6 mt-1 text-sm">
+              {phone
+                ? "Tidak ada pesanan untuk nomor tersebut."
+                : "Masukkan nomor WhatsApp untuk melihat riwayat."}
             </p>
             <Link
               href="/menu"
-              className="bg-primary text-white font-bold px-6 py-3 rounded-full hover:bg-primary/90 active:scale-95 transition-all"
+              className="rounded-full bg-primary px-6 py-3 font-bold text-white transition-all hover:bg-primary/90 active:scale-95"
             >
               Lihat Menu
             </Link>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
             {orders.map((order) => {
               const status = ORDER_STATUS_MAP[order.status] ?? ORDER_STATUS_MAP["PENDING"];
-              const totalQty = order.items.reduce((s, i) => s + i.quantity, 0);
+              const totalQty = order.items.reduce((sum, item) => sum + item.quantity, 0);
+              const firstItem = order.items[0];
+
               return (
                 <Link
                   key={order.id}
                   href={`/pesanan/${order.id}`}
-                  className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800 p-4 flex gap-3 items-start active:scale-[0.98] transition-transform block"
+                  className="flex gap-3 rounded-xl border border-neutral-100 bg-white p-4 transition-transform active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900"
                 >
-                  {/* Icon */}
-                  <div className="w-12 h-12 bg-stone-100 dark:bg-neutral-800 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <span className="text-2xl">🍜</span>
-                  </div>
+                  <ProductImage
+                    src={firstItem?.productImage}
+                    alt={firstItem?.productName ?? order.orderNumber}
+                    className="h-14 w-14 flex-shrink-0 rounded-xl"
+                    sizes="56px"
+                  />
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-bold text-sm text-neutral-900 dark:text-white truncate">
+                      <p className="truncate text-sm font-bold text-neutral-900 dark:text-white">
                         {order.orderNumber}
                       </p>
                       <span
                         className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0",
+                          "flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold",
                           status.color
                         )}
                       >
-                        {status.icon} {status.label}
+                        {status.label}
                       </span>
                     </div>
-                    <p className="text-xs text-neutral-400 mt-0.5 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-neutral-400">
+                      <Clock className="h-3 w-3" />
                       {formatDate(order.createdAt)}
                     </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                      {totalQty} item ·{" "}
+                    <p className="mt-1 truncate text-xs text-neutral-500 dark:text-neutral-400">
+                      {totalQty} item -{" "}
                       {order.items
                         .slice(0, 2)
-                        .map((i) => `${i.productName} ×${i.quantity}`)
+                        .map((item) => `${item.productName} x${item.quantity}`)
                         .join(", ")}
                       {order.items.length > 2 ? ", ..." : ""}
                     </p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="font-bold text-sm text-primary">
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-sm font-bold text-primary">
                         {formatPrice(order.totalAmount)}
                       </span>
-                      <span className="text-xs text-[#2D5016] font-semibold flex items-center gap-0.5">
-                        Detail <ChevronRight className="w-3 h-3" />
+                      <span className="flex items-center gap-0.5 text-xs font-semibold text-[#2D5016]">
+                        Detail <ChevronRight className="h-3 w-3" />
                       </span>
                     </div>
                   </div>

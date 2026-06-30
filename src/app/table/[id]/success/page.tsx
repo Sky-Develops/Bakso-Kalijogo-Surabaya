@@ -1,47 +1,81 @@
 "use client";
 
-import { useOrderStore } from "@/store/order-store";
-import { formatPrice, formatDate } from "@/lib/mock-data";
-import { CheckCircle2, Copy, Home, RotateCcw, Loader2 } from "lucide-react";
+import { Suspense, use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
-import { use } from "react";
+import { CheckCircle2, Copy, Loader2, RotateCcw, Search } from "lucide-react";
+import { fetchOrder } from "@/lib/order-api";
+import { formatPrice } from "@/lib/mock-data";
+import { ProductImage } from "@/components/product-image";
+import { createClient } from "@/utils/supabase/client";
+import { Order } from "@/types";
 import { toast } from "sonner";
 
-function TableSuccessContent({ id }: { id: string }) {
+function TableSuccessContent({ tableId }: { tableId: string }) {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
-  const { orders } = useOrderStore();
-  const [mounted, setMounted] = useState(false);
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadOrder = useCallback(async () => {
+    if (!orderId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const result = await fetchOrder(orderId);
+      setOrder(result.order);
+    } catch {
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    void loadOrder();
+  }, [loadOrder]);
 
-  if (!mounted) {
+  useEffect(() => {
+    if (!orderId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`table-success-${orderId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
+        () => void loadOrder()
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadOrder, orderId]);
+
+  if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-[#2D5016]" />
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#2D5016]" />
       </div>
     );
   }
 
-  const order = orders.find((o) => o.id === orderId);
-
   if (!order) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-        <span className="text-5xl mb-4">🤔</span>
-        <h2 className="text-xl font-bold mb-2 text-neutral-900 dark:text-white">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
+        <Search className="mb-4 h-14 w-14 text-neutral-300" />
+        <h2 className="mb-2 text-xl font-bold text-neutral-900 dark:text-white">
           Pesanan Tidak Ditemukan
         </h2>
-        <p className="text-neutral-500 mb-6 text-sm">
-          Link sudah kedaluwarsa atau Anda memuat ulang halaman.
+        <p className="mb-6 text-sm text-neutral-500">
+          Pesanan belum tersedia atau link tidak lengkap.
         </p>
         <Link
-          href={`/table/${id}`}
-          className="bg-[#2D5016] text-white px-6 py-3 rounded-full font-bold hover:bg-[#2D5016]/90 transition-colors"
+          href={`/table/${tableId}`}
+          className="rounded-full bg-[#2D5016] px-6 py-3 font-bold text-white transition-colors hover:bg-[#2D5016]/90"
         >
           Kembali ke Menu
         </Link>
@@ -55,83 +89,90 @@ function TableSuccessContent({ id }: { id: string }) {
   };
 
   return (
-    <div className="p-4 space-y-4 pb-8">
-      {/* Success Card */}
-      <div className="bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-        <div className="h-1.5 bg-gradient-to-r from-[#2D5016] via-emerald-400 to-[#E85D04]" />
-        <div className="p-6 flex flex-col items-center text-center">
-          <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/20 rounded-full flex items-center justify-center mb-4">
-            <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+    <div className="mx-auto max-w-3xl space-y-4 overflow-x-hidden p-4 pb-8">
+      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="h-1.5 bg-[#2D5016]" />
+        <div className="flex flex-col items-center p-6 text-center">
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/20">
+            <CheckCircle2 className="h-10 w-10 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-extrabold text-neutral-900 dark:text-white mb-2">
-            Pesanan Diterima! 🎉
+          <h1 className="mb-2 text-2xl font-extrabold text-neutral-900 dark:text-white">
+            Pesanan Diterima
           </h1>
-          <p className="text-neutral-500 text-sm leading-relaxed max-w-[240px]">
-            Pesanan Anda di <strong className="text-neutral-900 dark:text-white">Meja {id}</strong> sedang diproses oleh dapur kami.
+          <p className="max-w-[280px] text-sm leading-relaxed text-neutral-500">
+            Pesanan meja <strong className="text-neutral-900 dark:text-white">{tableId}</strong>{" "}
+            sudah masuk ke admin/dapur.
           </p>
 
           <button
             onClick={copyOrderNumber}
-            className="mt-5 flex items-center gap-2 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 px-5 py-3 rounded-xl transition-colors"
+            className="mt-5 flex items-center gap-2 rounded-xl bg-neutral-100 px-5 py-3 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700"
           >
             <div className="text-left">
-              <p className="text-[10px] text-neutral-400 uppercase tracking-wider font-semibold">Nomor Pesanan</p>
-              <p className="font-bold text-neutral-900 dark:text-white font-mono tracking-widest">{order.orderNumber}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                Nomor Pesanan
+              </p>
+              <p className="font-mono font-bold tracking-widest text-neutral-900 dark:text-white">
+                {order.orderNumber}
+              </p>
             </div>
-            <Copy className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+            <Copy className="h-4 w-4 flex-shrink-0 text-neutral-400" />
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Payment info */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Pembayaran</p>
-        {order.paymentMethod === "QRIS" ? (
-          <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl p-4 text-center">
-            <p className="font-bold text-blue-900 dark:text-blue-100 mb-1">Scan QRIS di Kasir</p>
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-              Sebutkan nomor pesanan <span className="font-bold">{order.orderNumber}</span> kepada kasir saat membayar via QRIS.
-            </p>
-          </div>
-        ) : (
-          <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-xl p-4 text-center">
-            <p className="font-bold text-amber-900 dark:text-amber-100 mb-1">Bayar Tunai di Kasir</p>
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              Silakan bayar ke kasir setelah selesai menikmati hidangan.
-            </p>
-          </div>
-        )}
-        <div className="flex justify-between items-center mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-          <span className="text-neutral-500 text-sm">Total Tagihan</span>
-          <span className="font-bold text-xl text-neutral-900 dark:text-white">
+      <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+        <p className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-400">
+          Pembayaran
+        </p>
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-center dark:border-blue-900/30 dark:bg-blue-900/10">
+          <p className="mb-1 font-bold text-blue-900 dark:text-blue-100">
+            {order.paymentMethod === "QRIS" ? "Scan QRIS di Kasir" : "Bayar Tunai di Kasir"}
+          </p>
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            Sebutkan nomor pesanan <span className="font-bold">{order.orderNumber}</span>{" "}
+            kepada kasir saat pembayaran.
+          </p>
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-4 dark:border-neutral-800">
+          <span className="text-sm text-neutral-500">Total Tagihan</span>
+          <span className="text-xl font-bold text-neutral-900 dark:text-white">
             {formatPrice(order.totalAmount)}
           </span>
         </div>
-      </div>
+      </section>
 
-      {/* Order Items */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Detail Pesanan</p>
-        <div className="space-y-2">
+      <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+        <p className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-400">
+          Detail Pesanan
+        </p>
+        <div className="space-y-3">
           {order.items.map((item) => (
-            <div key={item.id} className="flex justify-between text-sm">
-              <span className="text-neutral-700 dark:text-neutral-300">
-                {item.quantity}× {item.productName}
-              </span>
-              <span className="font-semibold text-neutral-900 dark:text-white">
+            <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+              <div className="flex min-w-0 items-center gap-3">
+                <ProductImage
+                  src={item.productImage}
+                  alt={item.productName}
+                  className="h-10 w-10 flex-shrink-0 rounded-lg"
+                  sizes="40px"
+                />
+                <span className="truncate text-neutral-700 dark:text-neutral-300">
+                  {item.quantity}x {item.productName}
+                </span>
+              </div>
+              <span className="flex-shrink-0 font-semibold text-neutral-900 dark:text-white">
                 {formatPrice(item.price * item.quantity)}
               </span>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* Actions */}
       <Link
-        href={`/table/${id}`}
-        className="w-full flex items-center justify-center gap-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 font-bold py-4 rounded-2xl hover:bg-neutral-50 active:scale-[0.98] transition-all"
+        href={`/table/${tableId}`}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-neutral-200 bg-white py-4 font-bold text-neutral-700 transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
       >
-        <RotateCcw className="w-5 h-5" />
+        <RotateCcw className="h-5 w-5" />
         Tambah Pesanan Lagi
       </Link>
     </div>
@@ -140,13 +181,16 @@ function TableSuccessContent({ id }: { id: string }) {
 
 export default function TableSuccessPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+
   return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-[#2D5016]" />
-      </div>
-    }>
-      <TableSuccessContent id={id} />
+    <Suspense
+      fallback={
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#2D5016]" />
+        </div>
+      }
+    >
+      <TableSuccessContent tableId={id} />
     </Suspense>
   );
 }

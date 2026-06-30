@@ -4,6 +4,8 @@ import { Product } from "@/types";
 import { formatPrice } from "@/lib/mock-data";
 import { useCartStore } from "@/store/cart-store";
 import { Minus, Plus } from "lucide-react";
+import { ProductImage } from "@/components/product-image";
+import { cn } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
@@ -13,14 +15,22 @@ interface ProductCardProps {
 export function ProductCard({ product, onOpenDetail }: ProductCardProps) {
   const { addItem, increaseQuantity, decreaseQuantity, items } = useCartStore();
   const cartItem = items.find((i) => i.product.id === product.id);
+  const isSoldOut =
+    !product.isAvailable ||
+    (product.stockQuantity !== undefined && product.stockQuantity <= 0);
 
   return (
     <div
-      className="bg-white dark:bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-100 dark:border-neutral-800 cursor-pointer active:scale-[0.98] transition-transform shadow-sm"
+      className="h-full min-w-0 cursor-pointer overflow-hidden rounded-xl border border-neutral-100 bg-white shadow-sm transition-transform active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900"
       onClick={() => onOpenDetail(product)}
     >
       {/* Image Area */}
-      <div className="relative bg-stone-100 dark:bg-neutral-800 flex items-center justify-center h-32">
+      <div className="relative">
+        {isSoldOut && (
+          <span className="absolute right-2 top-2 z-10 rounded-full bg-neutral-900/80 px-2 py-0.5 text-[10px] font-bold text-white">
+            Habis
+          </span>
+        )}
         {product.badge && (
           <span
             className={`absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full text-white z-10 ${
@@ -30,7 +40,11 @@ export function ProductCard({ product, onOpenDetail }: ProductCardProps) {
             {product.badge}
           </span>
         )}
-        <span className="text-5xl select-none">{product.imageUrl}</span>
+        <ProductImage
+          src={product.imageUrl}
+          alt={product.imageAlt ?? product.name}
+          className={cn("h-32 w-full sm:h-36", isSoldOut && "opacity-60 grayscale")}
+        />
       </div>
 
       {/* Info */}
@@ -38,19 +52,31 @@ export function ProductCard({ product, onOpenDetail }: ProductCardProps) {
         <p className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 leading-snug line-clamp-2">
           {product.name}
         </p>
-        <div className="flex items-center justify-between mt-2 gap-1">
-          <span className="text-primary font-bold text-sm flex-shrink-0">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-medium text-neutral-400">
+          {product.servingTime && <span>{product.servingTime}</span>}
+          {product.rating && <span>{product.rating} rating</span>}
+          {product.stockQuantity !== undefined && (
+            <span>{isSoldOut ? "Stok habis" : `Stok ${product.stockQuantity}`}</span>
+          )}
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-sm font-bold text-primary">
             {formatPrice(product.price)}
           </span>
 
-          {cartItem ? (
+          {isSoldOut ? (
+            <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-bold text-neutral-400 dark:bg-neutral-800">
+              Habis
+            </span>
+          ) : cartItem ? (
             <div
               className="flex items-center gap-1.5"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={() => decreaseQuantity(product.id)}
-                className="w-6 h-6 rounded-full border border-neutral-200 dark:border-neutral-700 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-neutral-200 transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                aria-label={`Kurangi ${product.name}`}
               >
                 <Minus className="w-3 h-3" />
               </button>
@@ -59,7 +85,8 @@ export function ProductCard({ product, onOpenDetail }: ProductCardProps) {
               </span>
               <button
                 onClick={() => increaseQuantity(product.id)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white transition hover:bg-primary/90"
+                aria-label={`Tambah ${product.name}`}
               >
                 <Plus className="w-3 h-3" />
               </button>
@@ -70,7 +97,7 @@ export function ProductCard({ product, onOpenDetail }: ProductCardProps) {
                 e.stopPropagation();
                 addItem(product);
               }}
-              className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 active:scale-90 transition-all shadow-md font-bold text-lg leading-none flex-shrink-0"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold leading-none text-white shadow-md transition-all hover:bg-primary/90 active:scale-90"
               aria-label={`Tambah ${product.name}`}
             >
               +

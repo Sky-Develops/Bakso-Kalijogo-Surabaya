@@ -1,17 +1,74 @@
 "use client";
 
-import { useOrderStore } from "@/store/order-store";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatPrice } from "@/lib/mock-data";
-import { BarChart3, TrendingUp, Download, Calendar, ArrowUpRight } from "lucide-react";
-import { useState } from "react";
+import { fetchOrders } from "@/lib/order-api";
+import { createClient } from "@/utils/supabase/client";
+import { Order } from "@/types";
+import { BarChart3, Download, Calendar, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function AdminReportsPage() {
-  const orders = useOrderStore((s) => s.orders);
-  const [period, setPeriod] = useState<"Harian" | "Mingguan" | "Bulanan">("Harian");
+type ReportPeriod = "Harian" | "Mingguan" | "Bulanan";
+const REPORT_PERIODS: ReportPeriod[] = ["Harian", "Mingguan", "Bulanan"];
 
-  const completedOrders = orders.filter((o) => o.status === "DELIVERED");
-  const totalRevenue = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+export default function AdminReportsPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [period, setPeriod] = useState<ReportPeriod>("Harian");
+  const [loading, setLoading] = useState(true);
+
+  const loadOrders = useCallback(async () => {
+    try {
+      const result = await fetchOrders();
+      setOrders(result.orders);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal memuat laporan.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("admin-reports")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () =>
+        void loadOrders()
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadOrders]);
+
+  const completedOrders = orders.filter((order) => order.status === "DELIVERED");
+  const totalRevenue = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const averageOrderValue =
+    completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;
+  const bestSellingItems = useMemo(() => {
+    const items = new Map<string, { name: string; qty: number; rev: number }>();
+
+    completedOrders.forEach((order) => {
+      order.items.forEach((item) => {
+        const current = items.get(item.productName) ?? {
+          name: item.productName,
+          qty: 0,
+          rev: 0,
+        };
+        current.qty += item.quantity;
+        current.rev += item.quantity * item.price;
+        items.set(item.productName, current);
+      });
+    });
+
+    return Array.from(items.values())
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+  }, [completedOrders]);
 
   return (
     <div className="space-y-6">
@@ -36,10 +93,10 @@ export default function AdminReportsPage() {
 
       {/* Filters */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide print:hidden">
-        {["Harian", "Mingguan", "Bulanan"].map((p) => (
+        {REPORT_PERIODS.map((p) => (
           <button
             key={p}
-            onClick={() => setPeriod(p as any)}
+            onClick={() => setPeriod(p)}
             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
               period === p
                 ? "bg-[#2D5016] text-white shadow-sm"
@@ -64,28 +121,24 @@ export default function AdminReportsPage() {
         <div className="bg-white dark:bg-neutral-950 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800">
           <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Total Pendapatan</p>
           <h3 className="text-3xl font-extrabold mt-2 text-neutral-900 dark:text-white">
-            {formatPrice(totalRevenue || 1250000)}
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : formatPrice(totalRevenue)}
           </h3>
-          <p className="text-sm text-emerald-600 flex items-center font-medium mt-2">
-            <TrendingUp className="w-4 h-4 mr-1" /> +15% dari periode lalu
-          </p>
+          <p className="text-sm text-neutral-500 font-medium mt-2">Dari pesanan selesai</p>
         </div>
         <div className="bg-white dark:bg-neutral-950 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800">
           <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Total Pesanan Sukses</p>
           <h3 className="text-3xl font-extrabold mt-2 text-neutral-900 dark:text-white">
-            {completedOrders.length || 42}
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : completedOrders.length}
           </h3>
-          <p className="text-sm text-emerald-600 flex items-center font-medium mt-2">
-            <TrendingUp className="w-4 h-4 mr-1" /> +8% dari periode lalu
-          </p>
+          <p className="text-sm text-neutral-500 font-medium mt-2">Status DELIVERED</p>
         </div>
         <div className="bg-white dark:bg-neutral-950 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800">
           <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Rata-rata Nilai Pesanan</p>
           <h3 className="text-3xl font-extrabold mt-2 text-neutral-900 dark:text-white">
-            {formatPrice((totalRevenue || 1250000) / (completedOrders.length || 42))}
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : formatPrice(averageOrderValue)}
           </h3>
           <p className="text-sm text-amber-600 flex items-center font-medium mt-2">
-            Stabil
+            Berdasarkan pesanan selesai
           </p>
         </div>
       </div>
@@ -112,13 +165,8 @@ export default function AdminReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {[
-                  { name: "Bakso Spesial", qty: 45, rev: 810000 },
-                  { name: "Mie Ayam Spesial", qty: 32, rev: 576000 },
-                  { name: "Es Teh Manis", qty: 68, rev: 340000 },
-                  { name: "Bakso Urat", qty: 21, rev: 315000 },
-                ].map((item, i) => (
-                  <tr key={i} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
+                {bestSellingItems.map((item) => (
+                  <tr key={item.name} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
                     <td className="px-6 py-4 font-semibold text-neutral-900 dark:text-white">
                       {item.name}
                     </td>
@@ -128,6 +176,13 @@ export default function AdminReportsPage() {
                     </td>
                   </tr>
                 ))}
+                {!loading && bestSellingItems.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-12 text-center text-neutral-500">
+                      Belum ada data menu selesai.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

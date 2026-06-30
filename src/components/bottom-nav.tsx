@@ -19,7 +19,7 @@ export function BottomNav() {
   const totalItems = useCartStore((s) => s.getTotalItems());
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-950 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-around h-16 max-w-lg mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 mx-auto flex h-16 max-w-lg items-center justify-around border-t border-neutral-100 bg-white dark:border-neutral-800 dark:bg-neutral-950 md:hidden">
       {navItems.map(({ href, icon: Icon, label }) => {
         const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
         const isCart = href === "/cart";

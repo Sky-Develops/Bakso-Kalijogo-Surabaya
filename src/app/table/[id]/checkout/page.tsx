@@ -1,20 +1,19 @@
 "use client";
 
-import { useCartStore } from "@/store/cart-store";
-import { useOrderStore } from "@/store/order-store";
-import { formatPrice, generateOrderNumber, SERVICE_FEE } from "@/lib/mock-data";
-import { ArrowLeft, Loader2, QrCode, Banknote } from "lucide-react";
+import { use, FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { use } from "react";
+import { ArrowLeft, Banknote, Loader2, QrCode, ShoppingBag } from "lucide-react";
+import { useCartStore } from "@/store/cart-store";
+import { createOrder } from "@/lib/order-api";
+import { formatPrice, SERVICE_FEE } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { ProductImage } from "@/components/product-image";
+import { toast } from "sonner";
 
 export default function TableCheckoutPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { items, getSubtotal, clearCart } = useCartStore();
-  const { addOrder } = useOrderStore();
   const router = useRouter();
-
   const [customerName, setCustomerName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "QRIS">("QRIS");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,53 +21,50 @@ export default function TableCheckoutPage({ params }: { params: Promise<{ id: st
   const subtotal = getSubtotal();
   const total = subtotal + SERVICE_FEE;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     if (items.length === 0) return;
+
     setIsSubmitting(true);
-
-    setTimeout(() => {
-      const orderId = crypto.randomUUID();
-
-      addOrder({
-        id: orderId,
-        orderNumber: generateOrderNumber(),
+    try {
+      const { order } = await createOrder({
         customerName: customerName.trim() || `Meja ${id}`,
-        customerPhone: "-",
-        items: items.map((i) => ({
-          id: crypto.randomUUID(),
-          productId: i.product.id,
-          productName: i.product.name,
-          productImage: i.product.imageUrl,
-          quantity: i.quantity,
-          price: i.product.price,
-          notes: i.notes,
-        })),
-        totalAmount: total,
-        subtotal,
+        customerPhone: `MEJA-${id}`,
+        orderType: "DINE_IN",
+        paymentMethod,
         shippingFee: 0,
         serviceFee: SERVICE_FEE,
-        status: "PENDING",
-        orderType: "DINE_IN",
         tableNumber: id,
-        paymentMethod: paymentMethod,
-        createdAt: new Date().toISOString(),
+        notes: `Meja ${id}`,
+        items: items.map((item) => ({
+          productId: item.product.id,
+          productName: item.product.name,
+          productImage: item.product.imageUrl,
+          quantity: item.quantity,
+          price: item.product.price,
+          notes: item.notes,
+        })),
       });
 
       clearCart();
-      router.push(`/table/${id}/success?orderId=${orderId}`);
-    }, 1200);
+      toast.success("Pesanan meja berhasil dikirim ke dapur!");
+      router.push(`/table/${id}/success?orderId=${order.id}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengirim pesanan.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-        <span className="text-5xl mb-4">🛒</span>
-        <h2 className="text-xl font-bold mb-2">Keranjang Kosong</h2>
-        <p className="text-neutral-500 mb-6 text-sm">Belum ada menu yang dipilih.</p>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
+        <ShoppingBag className="mb-4 h-14 w-14 text-neutral-300" />
+        <h2 className="mb-2 text-xl font-bold">Keranjang Kosong</h2>
+        <p className="mb-6 text-sm text-neutral-500">Belum ada menu yang dipilih.</p>
         <button
           onClick={() => router.back()}
-          className="bg-[#2D5016] text-white px-6 py-3 rounded-full font-bold hover:bg-[#2D5016]/90 transition-colors"
+          className="rounded-full bg-[#2D5016] px-6 py-3 font-bold text-white transition-colors hover:bg-[#2D5016]/90"
         >
           Kembali ke Menu
         </button>
@@ -77,42 +73,56 @@ export default function TableCheckoutPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="p-4 space-y-5 pb-40">
+    <div className="mx-auto max-w-3xl space-y-5 overflow-x-hidden p-4 pb-40">
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
+          className="rounded-full p-2 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          <ArrowLeft className="w-6 h-6" />
+          <ArrowLeft className="h-6 w-6" />
         </button>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white">Konfirmasi Pesanan</h1>
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-white">
+          Konfirmasi Pesanan
+        </h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4" id="table-checkout-form">
-        {/* Order Summary */}
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-          <div className="px-4 py-3 bg-neutral-50 dark:bg-neutral-800/50 border-b border-neutral-200 dark:border-neutral-700">
-            <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">Ringkasan Pesanan</p>
+        <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="border-b border-neutral-200 bg-neutral-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-800/50">
+            <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+              Ringkasan Pesanan
+            </p>
           </div>
-          <div className="p-4 space-y-3">
+          <div className="space-y-3 p-4">
             {items.map((item) => (
-              <div key={item.product.id} className="flex justify-between items-center text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{item.product.imageUrl}</span>
-                  <div>
-                    <p className="font-semibold text-neutral-900 dark:text-white">{item.product.name}</p>
-                    {item.notes && <p className="text-xs text-neutral-400 italic">{item.notes}</p>}
+              <div key={item.product.id} className="flex items-center justify-between gap-3 text-sm">
+                <div className="flex min-w-0 items-center gap-2">
+                  <ProductImage
+                    src={item.product.imageUrl}
+                    alt={item.product.imageAlt ?? item.product.name}
+                    className="h-10 w-10 flex-shrink-0 rounded-lg"
+                    sizes="40px"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-neutral-900 dark:text-white">
+                      {item.product.name}
+                    </p>
+                    {item.notes && (
+                      <p className="truncate text-xs text-neutral-400">{item.notes}</p>
+                    )}
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0 ml-2">
+                <div className="flex-shrink-0 text-right">
                   <p className="font-bold text-neutral-900 dark:text-white">
                     {formatPrice(item.product.price * item.quantity)}
                   </p>
-                  <p className="text-xs text-neutral-400">{item.quantity}× {formatPrice(item.product.price)}</p>
+                  <p className="text-xs text-neutral-400">
+                    {item.quantity}x {formatPrice(item.product.price)}
+                  </p>
                 </div>
               </div>
             ))}
-            <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 space-y-1">
+            <div className="space-y-1 border-t border-neutral-100 pt-3 dark:border-neutral-800">
               <div className="flex justify-between text-sm text-neutral-500">
                 <span>Subtotal</span>
                 <span>{formatPrice(subtotal)}</span>
@@ -121,84 +131,92 @@ export default function TableCheckoutPage({ params }: { params: Promise<{ id: st
                 <span>Biaya Layanan</span>
                 <span>{formatPrice(SERVICE_FEE)}</span>
               </div>
-              <div className="flex justify-between font-bold text-base text-neutral-900 dark:text-white pt-2 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="flex justify-between border-t border-neutral-100 pt-2 text-base font-bold text-neutral-900 dark:border-neutral-800 dark:text-white">
                 <span>Total Tagihan</span>
                 <span className="text-[#E85D04]">{formatPrice(total)}</span>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Customer Name */}
-        <div className="bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
+        <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+          <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-neutral-400">
             Nama Anda (Opsional)
           </label>
           <input
             type="text"
             value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
+            onChange={(event) => setCustomerName(event.target.value)}
             placeholder="Untuk memudahkan pelayan memanggil"
-            className="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D5016]/40 transition-all text-sm placeholder:text-neutral-400"
+            className="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[#2D5016]/40 dark:border-neutral-700 dark:bg-neutral-950"
           />
-        </div>
+        </section>
 
-        {/* Payment Method */}
-        <div className="bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-          <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Metode Pembayaran</p>
+        <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-400">
+            Metode Pembayaran
+          </p>
           <div className="grid grid-cols-2 gap-3">
             {[
               { value: "QRIS" as const, label: "QRIS", desc: "GoPay / M-Banking", icon: QrCode },
               { value: "CASH" as const, label: "Tunai", desc: "Bayar di kasir", icon: Banknote },
-            ].map((opt) => (
-              <label
-                key={opt.value}
-                className={cn(
-                  "flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all text-center",
-                  paymentMethod === opt.value
-                    ? "border-[#2D5016] bg-[#2D5016]/5"
-                    : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-300"
-                )}
-              >
-                <div className={cn(
-                  "p-2.5 rounded-xl",
-                  paymentMethod === opt.value ? "bg-[#2D5016] text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"
-                )}>
-                  <opt.icon className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-neutral-900 dark:text-white">{opt.label}</p>
-                  <p className="text-[10px] text-neutral-400">{opt.desc}</p>
-                </div>
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value={opt.value}
-                  checked={paymentMethod === opt.value}
-                  onChange={() => setPaymentMethod(opt.value)}
-                  className="sr-only"
-                />
-              </label>
-            ))}
+            ].map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <label
+                  key={opt.value}
+                  className={cn(
+                    "flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all",
+                    paymentMethod === opt.value
+                      ? "border-[#2D5016] bg-[#2D5016]/5"
+                      : "border-neutral-200 hover:border-neutral-300 dark:border-neutral-700"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "rounded-xl p-2.5",
+                      paymentMethod === opt.value
+                        ? "bg-[#2D5016] text-white"
+                        : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"
+                    )}
+                  >
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-neutral-900 dark:text-white">
+                      {opt.label}
+                    </p>
+                    <p className="text-[10px] text-neutral-400">{opt.desc}</p>
+                  </div>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value={opt.value}
+                    checked={paymentMethod === opt.value}
+                    onChange={() => setPaymentMethod(opt.value)}
+                    className="sr-only"
+                  />
+                </label>
+              );
+            })}
           </div>
-        </div>
+        </section>
       </form>
 
-      {/* Fixed Submit */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-white/90 dark:bg-neutral-950/90 backdrop-blur-md border-t border-neutral-200 dark:border-neutral-800 p-4 z-50">
+      <div className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-3xl border-t border-neutral-200 bg-white/90 p-4 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-950/90">
         <button
           type="submit"
           form="table-checkout-form"
           disabled={isSubmitting || items.length === 0}
-          className="w-full bg-[#2D5016] text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#2D5016]/90 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-[#2D5016]/20"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2D5016] py-4 font-bold text-white shadow-lg shadow-[#2D5016]/20 transition-all hover:bg-[#2D5016]/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
               Mengirim ke Dapur...
             </>
           ) : (
-            <>🍜 Kirim Pesanan ke Dapur</>
+            "Kirim Pesanan ke Dapur"
           )}
         </button>
       </div>

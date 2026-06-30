@@ -11,12 +11,18 @@ export type Product = {
   description?: string | null;
   price: number;
   imageUrl?: string | null;
+  imageAlt?: string;
   isAvailable: boolean;
   categoryId: string;
   category?: Category;
   badge?: "Terlaris" | "Baru" | null;
   rating?: number;
   soldCount?: number;
+  stockQuantity?: number;
+  spiceLevel?: string;
+  toppings?: string[];
+  servingTime?: string;
+  recommendations?: string[];
 };
 
 export type CartItem = {
@@ -27,6 +33,7 @@ export type CartItem = {
 
 export type OrderType = "ONLINE" | "TAKEAWAY" | "DINE_IN";
 export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER_BANK";
+export type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED";
 export type OrderStatus =
   | "PENDING"
   | "CONFIRMED"
@@ -60,6 +67,7 @@ export type Order = {
   status: OrderStatus;
   orderType: OrderType;
   paymentMethod: PaymentMethod;
+  paymentStatus?: PaymentStatus;
   totalAmount: number;
   subtotal: number;
   shippingFee: number;
@@ -67,6 +75,9 @@ export type Order = {
   customerName: string;
   customerPhone: string;
   deliveryAddress?: string;
+  deliveryArea?: string;
+  driverName?: string;
+  driverPhone?: string;
   tableNumber?: string;
   notes?: string;
   items: OrderItem[];

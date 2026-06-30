@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, Edit, Trash2, MoreVertical, LayoutGrid, CheckCircle, Clock, QrCode } from "lucide-react";
+import { Plus, Search, MoreVertical, LayoutGrid, CheckCircle, Clock, QrCode } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+type TableStatusFilter = "ALL" | "AVAILABLE" | "OCCUPIED" | "RESERVED";
 
 // Mock Data for Tables
 const MOCK_TABLES = Array.from({ length: 12 }).map((_, i) => ({
@@ -16,7 +18,7 @@ const MOCK_TABLES = Array.from({ length: 12 }).map((_, i) => ({
 
 export default function AdminTablesPage() {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"ALL" | "AVAILABLE" | "OCCUPIED" | "RESERVED">("ALL");
+  const [filter, setFilter] = useState<TableStatusFilter>("ALL");
 
   const filteredTables = MOCK_TABLES.filter((t) => {
     const matchStatus = filter === "ALL" || t.status === filter;
@@ -66,15 +68,15 @@ export default function AdminTablesPage() {
           />
         </div>
         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 sm:pb-0">
-          {[
+          {([
             { id: "ALL", label: "Semua" },
             { id: "AVAILABLE", label: "Tersedia" },
             { id: "OCCUPIED", label: "Terisi" },
             { id: "RESERVED", label: "Dipesan" },
-          ].map((tab) => (
+          ] satisfies { id: TableStatusFilter; label: string }[]).map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setFilter(tab.id as any)}
+              onClick={() => setFilter(tab.id)}
               className={cn(
                 "px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors",
                 filter === tab.id

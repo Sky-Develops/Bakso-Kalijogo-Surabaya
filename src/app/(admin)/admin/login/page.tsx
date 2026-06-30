@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Store, Lock, Mail, Loader2 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
@@ -13,12 +13,12 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -50,7 +50,7 @@ export default function AdminLoginPage() {
       toast.success("Berhasil masuk!");
       router.push("/admin");
       router.refresh();
-    } catch (err: any) {
+    } catch {
       toast.error("Terjadi kesalahan sistem.");
     } finally {
       setIsLoading(false);

@@ -14,6 +14,7 @@ interface CartState {
   increaseQuantity: (productId: string) => void;
   decreaseQuantity: (productId: string) => void;
   updateNotes: (productId: string, notes: string) => void;
+  syncProducts: (products: Product[]) => void;
   clearCart: () => void;
   getTotalItems: () => number;
   getSubtotal: () => number;
@@ -75,6 +76,28 @@ export const useCartStore = create<CartState>()(
             i.product.id === productId ? { ...i, notes } : i
           ),
         }),
+
+      syncProducts: (products) => {
+        const productById = new Map(products.map((product) => [product.id, product]));
+        set({
+          items: get()
+            .items.map((item) => {
+              const latest = productById.get(item.product.id);
+              if (!latest) return item;
+
+              const quantity =
+                latest.stockQuantity !== undefined
+                  ? Math.min(item.quantity, latest.stockQuantity)
+                  : item.quantity;
+
+              return { ...item, product: latest, quantity };
+            })
+            .filter((item) => {
+              const stock = item.product.stockQuantity;
+              return item.product.isAvailable && (stock === undefined || stock > 0);
+            }),
+        });
+      },
 
       clearCart: () => set({ items: [] }),
 

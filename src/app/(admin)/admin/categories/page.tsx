@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Edit, Trash2, MoreVertical, Coffee } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Coffee } from "lucide-react";
 import { categories } from "@/lib/mock-data";
 import { toast } from "sonner";
 

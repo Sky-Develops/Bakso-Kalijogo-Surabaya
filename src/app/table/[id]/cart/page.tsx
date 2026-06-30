@@ -6,6 +6,7 @@ import { ArrowLeft, Minus, Plus, Trash2, ArrowRight, ShoppingBag } from "lucide-
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";
+import { ProductImage } from "@/components/product-image";
 
 export default function TableCartPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -51,9 +52,12 @@ export default function TableCartPage({ params }: { params: Promise<{ id: string
             key={item.product.id}
             className="flex gap-3 p-4 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm"
           >
-            <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-xl flex items-center justify-center text-3xl flex-shrink-0 select-none">
-              {item.product.imageUrl}
-            </div>
+            <ProductImage
+              src={item.product.imageUrl}
+              alt={item.product.imageAlt ?? item.product.name}
+              className="h-16 w-16 flex-shrink-0 rounded-xl"
+              sizes="64px"
+            />
             <div className="flex-1">
               <p className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">
                 {item.product.name}

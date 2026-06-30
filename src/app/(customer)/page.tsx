@@ -1,138 +1,187 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Star, Clock, Users } from "lucide-react";
+import { MessageCircle, QrCode, ShoppingCart, Store } from "lucide-react";
 import { useCartStore } from "@/store/cart-store";
-import { products, formatPrice } from "@/lib/mock-data";
+import { products } from "@/lib/mock-data";
+import { fetchMenu } from "@/lib/menu-api";
 import { ProductCard } from "@/components/product-card";
 import { MenuDetailSheet } from "@/components/menu-detail-sheet";
 import { Product } from "@/types";
-import { useState } from "react";
-
-const featuredProducts = products.slice(0, 3);
+import { useEffect, useState } from "react";
+import { ProductImage } from "@/components/product-image";
 
 export default function HomePage() {
   const totalItems = useCartStore((s) => s.getTotalItems());
+  const syncProducts = useCartStore((s) => s.syncProducts);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [homeProducts, setHomeProducts] = useState<Product[]>(products);
+  const heroProduct = homeProducts[0] ?? products[0];
+  const featuredProducts = homeProducts
+    .filter((product) => product.isAvailable)
+    .slice(0, 4);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchMenu()
+      .then((data) => {
+        if (!active || data.products.length === 0) return;
+        setHomeProducts(data.products);
+        syncProducts(data.products);
+      })
+      .catch(() => setHomeProducts(products));
+
+    return () => {
+      active = false;
+    };
+  }, [syncProducts]);
 
   return (
     <>
-      <div className="flex flex-col min-h-screen">
-        {/* Hero Section */}
-        <section className="bg-[#2D5016] dark:bg-[#1a3209] text-white px-5 pt-12 pb-8 relative overflow-hidden">
-          {/* Background decorative circles */}
-          <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
-          <div className="absolute top-16 -right-4 w-24 h-24 rounded-full bg-white/5" />
-
-          {/* Top bar */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🍜</span>
-              <span className="font-bold text-lg">Bakso Kalijogo</span>
-            </div>
-            <Link href="/cart" className="relative">
-              <ShoppingCart className="w-6 h-6" />
-              {totalItems > 0 && (
-                <span className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                  {totalItems}
-                </span>
-              )}
-            </Link>
-          </div>
-
-          {/* Hero Text + Image */}
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-white/60 text-sm font-medium">Khas Surabaya Sejak 1995</p>
-              <h1 className="text-4xl font-extrabold mt-1 leading-tight">
-                Bakso<br />Kalijogo
-              </h1>
-              <p className="text-white/70 text-sm mt-1">Nikmat, Kenyal, Otentik.</p>
-              <Link
-                href="/menu"
-                className="inline-flex items-center gap-2 mt-5 bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2.5 rounded-full transition-all active:scale-95 shadow-lg shadow-primary/40"
-              >
-                Pesan Sekarang →
+      <div className="min-h-screen overflow-x-hidden">
+        <section className="bg-[#2D5016] px-5 py-6 text-white md:rounded-b-3xl md:px-8 md:py-8 lg:px-10">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-8 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/12">
+                  <Store className="h-5 w-5" />
+                </div>
+                <span className="text-lg font-bold">Bakso Kalijogo</span>
+              </div>
+              <Link href="/cart" className="relative rounded-full p-2 hover:bg-white/10">
+                <ShoppingCart className="h-6 w-6" />
+                {totalItems > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+                    {totalItems > 9 ? "9+" : totalItems}
+                  </span>
+                )}
               </Link>
             </div>
-            <div className="w-32 h-32 bg-white/10 rounded-2xl flex items-center justify-center ml-4 flex-shrink-0">
-              <span className="text-6xl">🍜</span>
-            </div>
-          </div>
 
-          {/* Stats */}
-          <div className="flex gap-6 mt-8 pt-6 border-t border-white/10">
-            <div>
-              <p className="text-2xl font-extrabold text-primary">29+</p>
-              <p className="text-xs text-white/60">Tahun Berdiri</p>
+            <div className="grid items-center gap-7 md:grid-cols-[1fr_380px] lg:grid-cols-[1fr_460px]">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white/65">
+                  Khas Surabaya sejak 1995
+                </p>
+                <h1 className="mt-2 max-w-xl text-4xl font-extrabold leading-tight md:text-6xl">
+                  Bakso Kalijogo
+                </h1>
+                <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/75 md:text-base">
+                  Bakso sapi segar, kuah kaldu gurih, dan mie ayam rumahan untuk
+                  makan di tempat, takeaway, atau pesan dari rumah.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link
+                    href="/menu"
+                    className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary/90 active:scale-95"
+                  >
+                    Pesan Sekarang
+                  </Link>
+                  <Link
+                    href="/table/1"
+                    className="inline-flex items-center justify-center rounded-full border border-white/25 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+                  >
+                    Mode QR Meja
+                  </Link>
+                </div>
+              </div>
+
+              <ProductImage
+                src={heroProduct.imageUrl}
+                alt={heroProduct.imageAlt ?? heroProduct.name}
+                className="h-56 w-full rounded-2xl shadow-2xl shadow-black/20 md:h-72"
+                sizes="(max-width: 768px) 100vw, 460px"
+                priority
+              />
             </div>
-            <div>
-              <p className="text-2xl font-extrabold text-primary">500+</p>
-              <p className="text-xs text-white/60">Pelanggan/Hari</p>
-            </div>
-            <div>
-              <p className="text-2xl font-extrabold text-primary">4.9★</p>
-              <p className="text-xs text-white/60">Rating</p>
+
+            <div className="mt-8 grid grid-cols-3 gap-3 border-t border-white/10 pt-5">
+              <div>
+                <p className="text-2xl font-extrabold text-primary">29+</p>
+                <p className="text-xs text-white/65">Tahun Berdiri</p>
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-primary">500+</p>
+                <p className="text-xs text-white/65">Pelanggan/Hari</p>
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-primary">4.9</p>
+                <p className="text-xs text-white/65">Rating</p>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Featured Menu Section */}
-        <section className="px-5 pt-6 pb-2">
-          <div className="flex items-center justify-between mb-1">
+        <section className="mx-auto max-w-6xl px-5 pt-7 md:px-8 lg:px-10">
+          <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Menu Favorit</h2>
-              <p className="text-xs text-neutral-400">Pilihan terlaris hari ini</p>
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-white md:text-xl">
+                Menu Favorit
+              </h2>
+              <p className="text-xs text-neutral-400 md:text-sm">
+                Pilihan paling sering dipesan hari ini
+              </p>
             </div>
-            <Link href="/menu" className="text-sm font-semibold text-primary">
+            <Link href="/menu" className="whitespace-nowrap text-sm font-semibold text-primary">
               Lihat Semua
             </Link>
           </div>
 
-          {/* Horizontal scroll cards */}
-          <div className="flex gap-3 mt-4 overflow-x-auto pb-2 -mx-5 px-5 scrollbar-hide">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {featuredProducts.map((product) => (
-              <div key={product.id} className="min-w-[130px]">
-                <ProductCard product={product} onOpenDetail={setSelectedProduct} />
-              </div>
+              <ProductCard
+                key={product.id}
+                product={product}
+                onOpenDetail={setSelectedProduct}
+              />
             ))}
           </div>
         </section>
 
-        {/* About Section */}
-        <section className="mx-5 mt-6 bg-white dark:bg-neutral-900 rounded-2xl p-5 border border-neutral-100 dark:border-neutral-800">
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">Tentang Kami</h2>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-            Bakso Kalijogo berdiri sejak 1995 di Surabaya. Kami menggunakan daging sapi segar pilihan,
-            diracik dengan bumbu rahasia turun-temurun yang selalu bikin ketagihan.
+        <section className="mx-auto grid max-w-6xl gap-4 px-5 py-7 md:grid-cols-[1.2fr_1fr] md:px-8 lg:px-10">
+          <div className="rounded-xl border border-neutral-100 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">
+              Tentang Kami
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+              Bakso Kalijogo berdiri sejak 1995 di Surabaya. Kami memakai daging
+              sapi pilihan dan kuah kaldu yang dimasak perlahan untuk rasa yang
+              konsisten.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-neutral-100 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">
+              Cara Pesan
+            </h2>
+            <div className="mt-4 grid gap-3">
+              {[
+                { icon: ShoppingCart, title: "Order Online", desc: "Pilih menu lalu checkout" },
+                { icon: QrCode, title: "Scan QR Meja", desc: "Pesan langsung dari meja" },
+                { icon: MessageCircle, title: "WhatsApp", desc: "0812-3456-7890" },
+              ].map((item) => (
+                <div key={item.title} className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#2D5016]/10 text-[#2D5016]">
+                    <item.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                      {item.title}
+                    </p>
+                    <p className="text-xs text-neutral-400">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <footer className="bg-[#1C1917] px-5 py-5 text-center text-xs text-white/60">
+          <p className="mb-1 font-semibold text-white/80">
+            Copyright 2025 Bakso Kalijogo - Surabaya
           </p>
-        </section>
-
-        {/* How to Order */}
-        <section className="px-5 mt-6 mb-4">
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-white mb-4">Cara Pesan</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { icon: "💻", title: "Order Online", desc: "Pesan lewat website" },
-              { icon: "📱", title: "Scan QR Meja", desc: "Scan di meja resto" },
-              { icon: "📞", title: "WhatsApp", desc: "0812-3456-7890" },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="bg-white dark:bg-neutral-900 rounded-xl p-3 text-center border border-neutral-100 dark:border-neutral-800 shadow-sm"
-              >
-                <span className="text-2xl">{item.icon}</span>
-                <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mt-2">{item.title}</p>
-                <p className="text-[10px] text-neutral-400 mt-0.5">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Footer */}
-        <footer className="bg-[#1C1917] text-white/60 text-center text-xs py-5 mt-auto px-5">
-          <p className="font-semibold text-white/80 mb-1">© 2025 Bakso Kalijogo — Surabaya</p>
-          <p>Jl. Kalijogo No.12, Surabaya · 0812-3456-7890</p>
+          <p>Jl. Kalijogo No.12, Surabaya - 0812-3456-7890</p>
         </footer>
       </div>
 

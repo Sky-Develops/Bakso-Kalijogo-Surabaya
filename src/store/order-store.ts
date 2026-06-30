@@ -5,6 +5,8 @@ import { Order, OrderStatus } from "@/types";
 
 interface OrderState {
   orders: Order[];
+  hasHydrated: boolean;
+  setHasHydrated: (value: boolean) => void;
   addOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
   getOrderById: (id: string) => Order | undefined;
@@ -14,6 +16,8 @@ export const useOrderStore = create<OrderState>()(
   persist(
     (set, get) => ({
       orders: [],
+      hasHydrated: false,
+      setHasHydrated: (value) => set({ hasHydrated: value }),
       addOrder: (order) => set({ orders: [order, ...get().orders] }),
       updateOrderStatus: (id, status) =>
         set({
@@ -23,6 +27,11 @@ export const useOrderStore = create<OrderState>()(
         }),
       getOrderById: (id) => get().orders.find((o) => o.id === id),
     }),
-    { name: "bakso-orders" }
+    {
+      name: "bakso-orders",
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
+    }
   )
 );

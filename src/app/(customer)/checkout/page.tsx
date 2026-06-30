@@ -2,20 +2,26 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, CheckCircle2, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  Banknote,
+  CheckCircle2,
+  CreditCard,
+  Loader2,
+  MapPin,
+  QrCode,
+  ShoppingBag,
+  Store,
+} from "lucide-react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart-store";
-import { useOrderStore } from "@/store/order-store";
-import {
-  SHIPPING_FEE,
-  SERVICE_FEE,
-  formatPrice,
-  generateOrderNumber,
-} from "@/lib/mock-data";
-import { CheckoutForm, Order, PaymentMethod, OrderType } from "@/types";
+import { SERVICE_FEE, formatPrice } from "@/lib/mock-data";
+import { CUSTOMER_PHONE_KEY, createOrder } from "@/lib/order-api";
+import { DELIVERY_AREAS, getDeliveryArea } from "@/lib/delivery";
+import { PaymentMethod, OrderType } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -28,6 +34,7 @@ const checkoutSchema = z
     address: z.string().optional(),
     notes: z.string().optional(),
     orderType: z.enum(["ONLINE", "TAKEAWAY", "DINE_IN"]),
+    deliveryArea: z.enum(["0-3km", "3-6km", "outside"]).optional(),
     paymentMethod: z.enum(["CASH", "QRIS", "TRANSFER_BANK"]),
   })
   .refine(
@@ -36,101 +43,129 @@ const checkoutSchema = z
       return true;
     },
     { message: "Alamat lengkap wajib diisi (min. 10 karakter)", path: ["address"] }
+  )
+  .refine(
+    (data) => {
+      if (data.orderType !== "ONLINE") return true;
+      return data.deliveryArea !== "outside";
+    },
+    {
+      message: "Alamat di luar radius delivery. Silakan pilih ambil sendiri atau hubungi outlet.",
+      path: ["deliveryArea"],
+    }
   );
+
+type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 
 const STEPS = ["Keranjang", "Checkout", "Konfirmasi"];
 
-const DELIVERY_OPTIONS: { value: OrderType; label: string; desc: string; icon: string }[] = [
-  { value: "ONLINE", label: "Ojek Online", desc: "Estimasi 30–45 menit", icon: "🛵" },
-  { value: "TAKEAWAY", label: "Ambil Sendiri", desc: "Langsung ke warung", icon: "🏃" },
+const DELIVERY_OPTIONS: {
+  value: OrderType;
+  label: string;
+  desc: string;
+  icon: typeof MapPin;
+}[] = [
+  { value: "ONLINE", label: "Delivery Outlet", desc: "Radius dan ongkir jelas", icon: MapPin },
+  { value: "TAKEAWAY", label: "Ambil Sendiri", desc: "Langsung ke warung", icon: Store },
 ];
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; desc: string; icon: string }[] = [
-  { value: "CASH", label: "Cash", desc: "Bayar tunai saat terima", icon: "💵" },
-  { value: "QRIS", label: "QRIS", desc: "Scan QR untuk bayar", icon: "📱" },
-  { value: "TRANSFER_BANK", label: "Transfer Bank", desc: "BCA / Mandiri / BRI", icon: "🏦" },
+const PAYMENT_OPTIONS: {
+  value: PaymentMethod;
+  label: string;
+  desc: string;
+  icon: typeof Banknote;
+}[] = [
+  { value: "CASH", label: "Cash", desc: "Bayar tunai saat terima", icon: Banknote },
+  { value: "QRIS", label: "QRIS", desc: "Scan QR untuk bayar", icon: QrCode },
+  { value: "TRANSFER_BANK", label: "Transfer Bank", desc: "BCA / Mandiri / BRI", icon: CreditCard },
 ];
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, getSubtotal, orderType, setOrderType, clearCart } = useCartStore();
-  const { addOrder } = useOrderStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const subtotal = getSubtotal();
-  const shippingFee = orderType === "ONLINE" ? SHIPPING_FEE : 0;
-  const total = subtotal + shippingFee + SERVICE_FEE;
+  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const {
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     formState: { errors },
-  } = useForm<CheckoutForm>({
-    resolver: zodResolver(checkoutSchema) as any,
+  } = useForm<CheckoutFormValues>({
+    resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      orderType: orderType,
+      orderType,
+      deliveryArea: "0-3km",
       paymentMethod: "QRIS",
     },
   });
 
-  const watchedOrderType = watch("orderType");
-  const watchedPayment = watch("paymentMethod");
+  const watchedOrderType = useWatch({ control, name: "orderType" });
+  const watchedDeliveryArea = useWatch({ control, name: "deliveryArea" });
+  const watchedPayment = useWatch({ control, name: "paymentMethod" });
+  const selectedDeliveryArea = getDeliveryArea(watchedDeliveryArea ?? "0-3km");
+  const shippingFee =
+    watchedOrderType === "ONLINE" && selectedDeliveryArea.available
+      ? selectedDeliveryArea.fee
+      : 0;
+  const total = subtotal + shippingFee + SERVICE_FEE;
+  const deliveryBlocked =
+    watchedOrderType === "ONLINE" && !selectedDeliveryArea.available;
 
-  const onSubmit = async (data: CheckoutForm) => {
+  const onSubmit = async (data: CheckoutFormValues) => {
     if (items.length === 0) {
       toast.error("Keranjang kosong!");
       return;
     }
 
     setIsSubmitting(true);
+    try {
+      const deliveryArea =
+        data.orderType === "ONLINE" ? getDeliveryArea(data.deliveryArea ?? "0-3km") : null;
+      const { order } = await createOrder({
+        customerName: data.name,
+        customerPhone: data.phone,
+        deliveryAddress: data.address,
+        deliveryArea: deliveryArea?.label,
+        notes: data.notes,
+        orderType: data.orderType,
+        paymentMethod: data.paymentMethod,
+        shippingFee: data.orderType === "ONLINE" ? shippingFee : 0,
+        serviceFee: SERVICE_FEE,
+        items: items.map((item) => ({
+          productId: item.product.id,
+          productName: item.product.name,
+          productImage: item.product.imageUrl,
+          quantity: item.quantity,
+          price: item.product.price,
+          notes: item.notes,
+        })),
+      });
 
-    // Simulate API delay
-    await new Promise((r) => setTimeout(r, 1200));
-
-    const order: Order = {
-      id: crypto.randomUUID(),
-      orderNumber: generateOrderNumber(),
-      status: "PENDING",
-      orderType: data.orderType,
-      paymentMethod: data.paymentMethod,
-      totalAmount: total,
-      subtotal,
-      shippingFee: data.orderType === "ONLINE" ? SHIPPING_FEE : 0,
-      serviceFee: SERVICE_FEE,
-      customerName: data.name,
-      customerPhone: data.phone,
-      deliveryAddress: data.address,
-      notes: data.notes,
-      items: items.map((i) => ({
-        id: i.product.id,
-        productName: i.product.name,
-        productImage: i.product.imageUrl,
-        quantity: i.quantity,
-        price: i.product.price,
-        notes: i.notes,
-      })),
-      createdAt: new Date().toISOString(),
-    };
-
-    addOrder(order);
-    clearCart();
-    toast.success("Pesanan berhasil dibuat!");
-    router.push(`/pesanan/${order.id}`);
+      window.localStorage.setItem(CUSTOMER_PHONE_KEY, data.phone);
+      clearCart();
+      toast.success("Pesanan berhasil masuk ke sistem!");
+      router.push(`/pesanan/${order.id}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Pesanan gagal dibuat. Coba lagi.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-5 gap-4">
-        <span className="text-5xl">🛒</span>
-        <p className="font-bold text-lg text-neutral-700 dark:text-neutral-300">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-5 text-center">
+        <ShoppingBag className="h-14 w-14 text-neutral-300" />
+        <p className="text-lg font-bold text-neutral-700 dark:text-neutral-300">
           Keranjang kosong
         </p>
-        <Link
-          href="/menu"
-          className="bg-primary text-white px-6 py-3 rounded-full font-bold"
-        >
+        <Link href="/menu" className="rounded-full bg-primary px-6 py-3 font-bold text-white">
           Kembali ke Menu
         </Link>
       </div>
@@ -138,307 +173,308 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 pb-32">
-      {/* Header */}
-      <div className="bg-[#2D5016] dark:bg-[#1a3209] sticky top-0 z-30 px-4 py-4">
-        <div className="flex items-center gap-3 mb-4">
-          <Link href="/cart" className="text-white">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <h1 className="text-white font-bold text-lg">Checkout</h1>
-        </div>
+    <div className="min-h-screen overflow-x-hidden bg-neutral-50 pb-44 dark:bg-neutral-950 md:pb-32">
+      <div className="sticky top-0 z-30 bg-[#2D5016] px-4 py-4 dark:bg-[#1a3209]">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-4 flex items-center gap-3">
+            <Link href="/cart" className="text-white">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <h1 className="text-lg font-bold text-white">Checkout</h1>
+          </div>
 
-        {/* Step indicator */}
-        <div className="flex items-center">
-          {STEPS.map((step, idx) => (
-            <div key={step} className="flex items-center flex-1 last:flex-none">
+          <div className="grid grid-cols-3 gap-2">
+            {STEPS.map((step, idx) => (
               <div
+                key={step}
                 className={cn(
-                  "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0",
-                  idx === 0
-                    ? "bg-white text-[#2D5016]"
-                    : idx === 1
-                    ? "bg-white/20 border-2 border-white text-white"
-                    : "bg-white/10 text-white/40"
+                  "flex min-w-0 items-center gap-2 rounded-full px-2 py-1.5",
+                  idx === 1 ? "bg-white/15" : "bg-white/5"
                 )}
               >
-                {idx === 0 ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
+                <div
+                  className={cn(
+                    "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                    idx === 0
+                      ? "bg-white text-[#2D5016]"
+                      : idx === 1
+                      ? "border-2 border-white bg-white/20 text-white"
+                      : "bg-white/10 text-white/40"
+                  )}
+                >
+                  {idx === 0 ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
+                </div>
+                <p
+                  className={cn(
+                    "min-w-0 truncate text-[10px] font-medium sm:text-xs",
+                    idx <= 1 ? "text-white" : "text-white/40"
+                  )}
+                >
+                  {step}
+                </p>
               </div>
-              <p className={cn("text-[10px] ml-1.5 font-medium", idx <= 1 ? "text-white" : "text-white/40")}>
-                {step}
-              </p>
-              {idx < STEPS.length - 1 && (
-                <div className="flex-1 h-px bg-white/20 mx-2" />
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
-      <form id="checkout-form" onSubmit={handleSubmit(onSubmit)} className="px-4 pt-5 space-y-4">
-        {/* Delivery Method */}
-        <section className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-800">
-          <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-3">
-            Metode Pengiriman
-          </p>
-          <div className="space-y-2">
-            {DELIVERY_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
-                  watchedOrderType === opt.value
-                    ? "border-[#2D5016] bg-[#2D5016]/5"
-                    : "border-neutral-200 dark:border-neutral-700"
-                )}
-              >
-                <input
-                  type="radio"
-                  value={opt.value}
-                  {...register("orderType")}
-                  onChange={() => {
-                    setValue("orderType", opt.value);
-                    setOrderType(opt.value);
-                  }}
-                  className="sr-only"
-                />
-                <div
-                  className={cn(
-                    "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                    watchedOrderType === opt.value
-                      ? "border-[#2D5016]"
-                      : "border-neutral-300"
-                  )}
-                >
-                  {watchedOrderType === opt.value && (
-                    <div className="w-2 h-2 rounded-full bg-[#2D5016]" />
-                  )}
-                </div>
-                <span className="text-xl">{opt.icon}</span>
-                <div className="flex-1">
-                  <p className="font-semibold text-sm text-neutral-900 dark:text-white">
-                    {opt.label}
-                  </p>
-                  <p className="text-xs text-neutral-400">{opt.desc}</p>
-                </div>
-              </label>
-            ))}
-          </div>
-        </section>
-
-        {/* Delivery Address (only if ONLINE) */}
-        {watchedOrderType === "ONLINE" && (
-          <section className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-800 space-y-3">
-            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
-              Alamat Pengiriman
+      <form
+        id="checkout-form"
+        onSubmit={handleSubmit(onSubmit)}
+        className="mx-auto grid max-w-5xl gap-4 px-4 pt-5 lg:grid-cols-[1fr_360px]"
+      >
+        <div className="space-y-4">
+          <section className="rounded-xl border border-neutral-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+              Metode Pengiriman
             </p>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
-                Nama Penerima
-              </label>
-              <input
-                {...register("name")}
-                placeholder="Contoh: Budi Santoso"
-                className={cn(
-                  "w-full border rounded-xl px-4 py-3 text-sm bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary/30 transition",
-                  errors.name ? "border-red-400" : "border-neutral-200 dark:border-neutral-700"
-                )}
-              />
-              {errors.name && (
-                <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
-                Nomor WhatsApp
-              </label>
-              <input
-                {...register("phone")}
-                type="tel"
-                placeholder="Contoh: 08123456789"
-                className={cn(
-                  "w-full border rounded-xl px-4 py-3 text-sm bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary/30 transition",
-                  errors.phone ? "border-red-400" : "border-neutral-200 dark:border-neutral-700"
-                )}
-              />
-              {errors.phone && (
-                <p className="text-xs text-red-500 mt-1">{errors.phone.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
-                Alamat Lengkap
-              </label>
-              <textarea
-                {...register("address")}
-                rows={3}
-                placeholder="Jalan, RT/RW, Kelurahan..."
-                className={cn(
-                  "w-full border rounded-xl px-4 py-3 text-sm bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary/30 transition resize-none",
-                  errors.address ? "border-red-400" : "border-neutral-200 dark:border-neutral-700"
-                )}
-              />
-              {errors.address && (
-                <p className="text-xs text-red-500 mt-1">{errors.address.message}</p>
-              )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {DELIVERY_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                return (
+                  <label
+                    key={opt.value}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all",
+                      watchedOrderType === opt.value
+                        ? "border-[#2D5016] bg-[#2D5016]/5"
+                        : "border-neutral-200 dark:border-neutral-700"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      value={opt.value}
+                      {...register("orderType")}
+                      onChange={() => {
+                        setValue("orderType", opt.value);
+                        setOrderType(opt.value);
+                      }}
+                      className="sr-only"
+                    />
+                    <Icon className="h-5 w-5 flex-shrink-0 text-[#2D5016]" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                        {opt.label}
+                      </p>
+                      <p className="text-xs text-neutral-400">{opt.desc}</p>
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           </section>
-        )}
 
-        {/* Pickup - just name and phone */}
-        {watchedOrderType !== "ONLINE" && (
-          <section className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-800 space-y-3">
-            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
-              Data Pemesan
+          <section className="rounded-xl border border-neutral-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+              {watchedOrderType === "ONLINE" ? "Alamat Pengiriman" : "Data Pemesan"}
             </p>
-            <div>
-              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
-                Nama
-              </label>
-              <input
-                {...register("name")}
-                placeholder="Contoh: Budi Santoso"
-                className={cn(
-                  "w-full border rounded-xl px-4 py-3 text-sm bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary/30 transition",
-                  errors.name ? "border-red-400" : "border-neutral-200 dark:border-neutral-700"
-                )}
-              />
-              {errors.name && (
-                <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
-                Nomor WhatsApp
-              </label>
-              <input
-                {...register("phone")}
-                type="tel"
-                placeholder="Contoh: 08123456789"
-                className={cn(
-                  "w-full border rounded-xl px-4 py-3 text-sm bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary/30 transition",
-                  errors.phone ? "border-red-400" : "border-neutral-200 dark:border-neutral-700"
-                )}
-              />
-              {errors.phone && (
-                <p className="text-xs text-red-500 mt-1">{errors.phone.message}</p>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Additional Notes */}
-        <section className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-800">
-          <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-3">
-            Keterangan Tambahan
-          </p>
-          <textarea
-            {...register("notes")}
-            rows={2}
-            placeholder="Contoh: Tolong jangan pedas, bungkus rapi..."
-            className="w-full border border-neutral-200 dark:border-neutral-700 rounded-xl px-4 py-3 text-sm bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none transition"
-          />
-        </section>
-
-        {/* Payment Method */}
-        <section className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-800">
-          <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-3">
-            Metode Pembayaran
-          </p>
-          <div className="space-y-2">
-            {PAYMENT_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
-                  watchedPayment === opt.value
-                    ? "border-[#2D5016] bg-[#2D5016]/5"
-                    : "border-neutral-200 dark:border-neutral-700"
-                )}
-              >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  Nama
+                </label>
                 <input
-                  type="radio"
-                  value={opt.value}
-                  {...register("paymentMethod")}
-                  onChange={() => setValue("paymentMethod", opt.value)}
-                  className="sr-only"
-                />
-                <div
+                  {...register("name")}
+                  placeholder="Contoh: Budi Santoso"
                   className={cn(
-                    "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                    watchedPayment === opt.value
-                      ? "border-[#2D5016]"
-                      : "border-neutral-300"
+                    "w-full rounded-xl border bg-neutral-50 px-4 py-3 text-sm text-neutral-800 transition focus:outline-none focus:ring-2 focus:ring-primary/30 dark:bg-neutral-800 dark:text-neutral-200",
+                    errors.name ? "border-red-400" : "border-neutral-200 dark:border-neutral-700"
                   )}
-                >
-                  {watchedPayment === opt.value && (
-                    <div className="w-2 h-2 rounded-full bg-[#2D5016]" />
-                  )}
-                </div>
-                <span className="text-xl">{opt.icon}</span>
-                <div className="flex-1">
-                  <p className="font-semibold text-sm text-neutral-900 dark:text-white">
-                    {opt.label}
-                  </p>
-                  <p className="text-xs text-neutral-400">{opt.desc}</p>
-                </div>
-              </label>
-            ))}
-          </div>
-        </section>
-
-        {/* Order Summary */}
-        <section className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-800">
-          <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-3">
-            Ringkasan
-          </p>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            {items.reduce((s, i) => s + i.quantity, 0)} item (
-            {items
-              .slice(0, 2)
-              .map((i) => `${i.product.name} ×${i.quantity}`)
-              .join(", ")}
-            {items.length > 2 ? ", ..." : ""})
-          </p>
-          <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800 space-y-1 text-sm">
-            {watchedOrderType === "ONLINE" && (
-              <div className="flex justify-between text-neutral-500">
-                <span>Ongkos Kirim</span>
-                <span>{formatPrice(shippingFee)}</span>
+                />
+                {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
               </div>
-            )}
-            <div className="flex justify-between font-bold text-neutral-900 dark:text-white">
-              <span>Total</span>
-              <span className="text-primary">{formatPrice(total)}</span>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  Nomor WhatsApp
+                </label>
+                <input
+                  {...register("phone")}
+                  type="tel"
+                  placeholder="Contoh: 08123456789"
+                  className={cn(
+                    "w-full rounded-xl border bg-neutral-50 px-4 py-3 text-sm text-neutral-800 transition focus:outline-none focus:ring-2 focus:ring-primary/30 dark:bg-neutral-800 dark:text-neutral-200",
+                    errors.phone ? "border-red-400" : "border-neutral-200 dark:border-neutral-700"
+                  )}
+                />
+                {errors.phone && <p className="mt-1 text-xs text-red-500">{errors.phone.message}</p>}
+              </div>
+
+              {watchedOrderType === "ONLINE" && (
+                <>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      Alamat Lengkap
+                    </label>
+                    <textarea
+                      {...register("address")}
+                      rows={3}
+                      placeholder="Jalan, nomor rumah, patokan, kelurahan..."
+                      className={cn(
+                        "w-full resize-none rounded-xl border bg-neutral-50 px-4 py-3 text-sm text-neutral-800 transition focus:outline-none focus:ring-2 focus:ring-primary/30 dark:bg-neutral-800 dark:text-neutral-200",
+                        errors.address
+                          ? "border-red-400"
+                          : "border-neutral-200 dark:border-neutral-700"
+                      )}
+                    />
+                    {errors.address && (
+                      <p className="mt-1 text-xs text-red-500">{errors.address.message}</p>
+                    )}
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="mb-2 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      Radius Pengiriman
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {DELIVERY_AREAS.map((area) => (
+                        <label
+                          key={area.id}
+                          className={cn(
+                            "cursor-pointer rounded-xl border-2 p-3 text-sm transition-all",
+                            watchedDeliveryArea === area.id
+                              ? "border-[#2D5016] bg-[#2D5016]/5"
+                              : "border-neutral-200 dark:border-neutral-700",
+                            !area.available && "opacity-70"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            value={area.id}
+                            {...register("deliveryArea")}
+                            className="sr-only"
+                          />
+                          <span className="block font-semibold text-neutral-900 dark:text-white">
+                            {area.label}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-neutral-500">
+                            {area.available ? `${formatPrice(area.fee)} - ${area.eta}` : area.eta}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    {errors.deliveryArea && (
+                      <p className="mt-1 text-xs text-red-500">
+                        {errors.deliveryArea.message}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-        </section>
+          </section>
+
+          <section className="rounded-xl border border-neutral-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+              Keterangan Tambahan
+            </p>
+            <textarea
+              {...register("notes")}
+              rows={2}
+              placeholder="Contoh: Tolong jangan pedas, bungkus rapi..."
+              className="w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-800 transition focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+            />
+          </section>
+        </div>
+
+        <div className="space-y-4 lg:sticky lg:top-36 lg:self-start">
+          <section className="rounded-xl border border-neutral-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+              Metode Pembayaran
+            </p>
+            <div className="space-y-2">
+              {PAYMENT_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                return (
+                  <label
+                    key={opt.value}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all",
+                      watchedPayment === opt.value
+                        ? "border-[#2D5016] bg-[#2D5016]/5"
+                        : "border-neutral-200 dark:border-neutral-700"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      value={opt.value}
+                      {...register("paymentMethod")}
+                      onChange={() => setValue("paymentMethod", opt.value)}
+                      className="sr-only"
+                    />
+                    <Icon className="h-5 w-5 flex-shrink-0 text-[#2D5016]" />
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                        {opt.label}
+                      </p>
+                      <p className="text-xs text-neutral-400">{opt.desc}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-neutral-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+              Ringkasan
+            </p>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              {totalItems} item (
+              {items
+                .slice(0, 2)
+                .map((item) => `${item.product.name} x${item.quantity}`)
+                .join(", ")}
+              {items.length > 2 ? ", ..." : ""})
+            </p>
+            <div className="mt-3 space-y-2 border-t border-neutral-100 pt-3 text-sm dark:border-neutral-800">
+              <div className="flex justify-between gap-4 text-neutral-500">
+                <span>Subtotal</span>
+                <span className="text-right">{formatPrice(subtotal)}</span>
+              </div>
+              {watchedOrderType === "ONLINE" && (
+                <div className="flex justify-between gap-4 text-neutral-500">
+                  <span>Ongkos Kirim</span>
+                  <span className="text-right">{formatPrice(shippingFee)}</span>
+                </div>
+              )}
+              {watchedOrderType === "ONLINE" && (
+                <p className="text-xs text-neutral-400">
+                  {selectedDeliveryArea.label} - {selectedDeliveryArea.eta}
+                </p>
+              )}
+              <div className="flex justify-between gap-4 text-neutral-500">
+                <span>Biaya Layanan</span>
+                <span className="text-right">{formatPrice(SERVICE_FEE)}</span>
+              </div>
+              <div className="flex justify-between gap-4 border-t border-neutral-100 pt-2 font-bold text-neutral-900 dark:border-neutral-800 dark:text-white">
+                <span>Total</span>
+                <span className="text-right text-primary">{formatPrice(total)}</span>
+              </div>
+            </div>
+          </section>
+        </div>
       </form>
 
-      {/* Fixed Submit Button */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-white dark:bg-neutral-950 border-t border-neutral-100 dark:border-neutral-800 px-4 py-4 z-40">
+      <div className="fixed bottom-16 left-0 right-0 z-40 mx-auto max-w-5xl border-t border-neutral-100 bg-white px-4 py-4 dark:border-neutral-800 dark:bg-neutral-950 md:bottom-0">
         <button
           type="submit"
           form="checkout-form"
-          onClick={handleSubmit(onSubmit)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || deliveryBlocked}
           className={cn(
-            "w-full bg-[#2D5016] text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg",
-            isSubmitting ? "opacity-70 cursor-not-allowed" : "hover:bg-[#2D5016]/90"
+            "flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2D5016] py-4 font-bold text-white shadow-lg transition-all active:scale-95",
+            isSubmitting || deliveryBlocked
+              ? "cursor-not-allowed opacity-70"
+              : "hover:bg-[#2D5016]/90"
           )}
         >
           {isSubmitting ? (
             <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
               Memproses Pesanan...
             </>
           ) : (
-            <>
-              Buat Pesanan →
-            </>
+            deliveryBlocked ? "Alamat di luar radius" : "Buat Pesanan"
           )}
         </button>
       </div>
