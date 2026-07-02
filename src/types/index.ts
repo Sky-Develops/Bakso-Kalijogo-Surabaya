@@ -1,8 +1,9 @@
-// src/types/index.ts
 export type Category = {
   id: string;
   name: string;
   icon?: string;
+  sortOrder?: number;
+  isActive?: boolean;
 };
 
 export type Product = {
@@ -84,6 +85,7 @@ export type Order = {
   createdAt: string;
 };
 
+<<<<<<< HEAD
 export type PrintTemplate = {
   header: string;          // Baris atas: nama toko, alamat, no WA
   subHeader: string;       // Sub-header: tagline / keterangan tambahan
@@ -134,3 +136,34 @@ export type StoreSettings = {
   createdAt?: string;
   updatedAt?: string;
 };
+=======
+export type TableStatus = "AVAILABLE" | "OCCUPIED" | "RESERVED";
+
+export type DiningTable = {
+  id: string;
+  number: number;
+  capacity: number;
+  status: TableStatus;
+  qrCodeUrl?: string | null;
+  activeQrSession?: QrSession | null;
+  currentOrder?: {
+    id: string;
+    orderNumber: string;
+    status: OrderStatus;
+    totalAmount: number;
+    createdAt: string;
+  } | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type QrSession = {
+  id: string;
+  tableId: string;
+  tableNumber: number;
+  token: string;
+  isActive: boolean;
+  expiresAt: string;
+  createdAt: string;
+};
+>>>>>>> 55ef1d5 (update candra 2 juli)

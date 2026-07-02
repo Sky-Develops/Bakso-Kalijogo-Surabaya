@@ -222,6 +222,20 @@ EXCEPTION
   WHEN duplicate_object OR undefined_object THEN NULL;
 END $$;
 
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE dining_tables;
+EXCEPTION
+  WHEN duplicate_object OR undefined_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE qr_sessions;
+EXCEPTION
+  WHEN duplicate_object OR undefined_object THEN NULL;
+END $$;
+
 -- ----------------------------------------
 -- 11. UPDATED_AT TRIGGERS
 -- ----------------------------------------

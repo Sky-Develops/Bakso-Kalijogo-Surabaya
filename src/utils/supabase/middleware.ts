@@ -1,6 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+type AdminRole = "OWNER" | "ADMIN" | "KASIR";
+
+function canAccessAdminPath(role: AdminRole, pathname: string) {
+  if (role === "OWNER" || role === "ADMIN") return true;
+
+  return (
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/orders") ||
+    pathname.startsWith("/admin/tables")
+  );
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -38,12 +50,33 @@ export async function updateSession(request: NextRequest) {
   if (
     !user &&
     request.nextUrl.pathname.startsWith("/admin") &&
-    request.nextUrl.pathname !== "/admin/login"
+    request.nextUrl.pathname !== "/admin/login" &&
+    request.nextUrl.pathname !== "/admin/unauthorized"
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
     return NextResponse.redirect(url);
+  }
+
+  if (
+    user &&
+    request.nextUrl.pathname.startsWith("/admin") &&
+    request.nextUrl.pathname !== "/admin/login" &&
+    request.nextUrl.pathname !== "/admin/unauthorized"
+  ) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    const role = profile?.role as AdminRole | undefined;
+
+    if (!role || !canAccessAdminPath(role, request.nextUrl.pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin/unauthorized";
+      return NextResponse.redirect(url);
+    }
   }
 
   // If user is signed in and the current path is /admin/login redirect the user to /admin

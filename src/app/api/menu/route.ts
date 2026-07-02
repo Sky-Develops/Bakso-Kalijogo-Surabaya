@@ -37,6 +37,7 @@ export async function GET() {
     supabase
       .from("menu_categories")
       .select("id,name,icon,sort_order")
+      .eq("is_active", true)
       .order("sort_order", { ascending: true }),
     supabase
       .from("menu_items")
@@ -53,10 +54,13 @@ export async function GET() {
     return NextResponse.json({ error: productResult.error.message }, { status: 500 });
   }
 
-  return NextResponse.json({
-    categories: ((categoryResult.data ?? []) as RawMenuCategory[]).map(mapCategory),
-    products: ((productResult.data ?? []) as RawMenuItem[]).map(mapProduct),
-  });
+  const categories = ((categoryResult.data ?? []) as RawMenuCategory[]).map(mapCategory);
+  const activeCategoryIds = new Set(categories.map((category) => category.id));
+  const products = ((productResult.data ?? []) as RawMenuItem[])
+    .filter((product) => activeCategoryIds.has(product.category_id))
+    .map(mapProduct);
+
+  return NextResponse.json({ categories, products });
 }
 
 export async function POST(request: Request) {

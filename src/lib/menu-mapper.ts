@@ -5,6 +5,7 @@ export type RawMenuCategory = {
   name: string;
   icon?: string | null;
   sort_order?: number | null;
+  is_active?: boolean | null;
 };
 
 export type RawMenuItem = {
@@ -44,6 +45,8 @@ export function mapCategory(row: RawMenuCategory): Category {
     id: row.id,
     name: row.name,
     icon: row.icon ?? undefined,
+    sortOrder: row.sort_order ?? undefined,
+    isActive: row.is_active ?? undefined,
   };
 }
 

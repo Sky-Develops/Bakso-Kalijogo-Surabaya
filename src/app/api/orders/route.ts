@@ -185,6 +185,21 @@ export async function POST(request: Request) {
   const serviceFee = payload.serviceFee ?? SERVICE_FEE;
   const totalAmount = subtotal + payload.shippingFee + serviceFee;
   const paymentStatus = "UNPAID";
+  let tableId: string | null = null;
+
+  if (payload.orderType === "DINE_IN" && payload.tableNumber) {
+    const { data: table, error: tableError } = await supabase
+      .from("dining_tables")
+      .select("id")
+      .eq("number", Number(payload.tableNumber))
+      .maybeSingle();
+
+    if (tableError) {
+      return NextResponse.json({ error: tableError.message }, { status: 500 });
+    }
+
+    tableId = (table?.id as string | undefined) ?? null;
+  }
 
   const { error: orderError } = await supabase.from("orders").insert({
     id: orderId,
@@ -202,6 +217,7 @@ export async function POST(request: Request) {
     delivery_address: payload.deliveryAddress,
     delivery_area: payload.deliveryArea,
     table_number: payload.tableNumber,
+    table_id: tableId,
     notes: payload.notes,
   });
 
