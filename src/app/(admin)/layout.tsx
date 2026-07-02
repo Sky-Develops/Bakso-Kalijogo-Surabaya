@@ -43,8 +43,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   };
 
-  // Don't render shell on login page
-  if (pathname === "/admin/login") {
+  // Don't render shell on login / reset-password pages
+  if (pathname === "/admin/login" || pathname === "/admin/reset-password") {
     return <>{children}</>;
   }
 
@@ -119,7 +119,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Mobile Bottom Navigation */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-around h-16 px-1 z-50 safe-area-bottom">
-          {NAV_ITEMS.slice(0, 5).map((item) => {
+          {NAV_ITEMS.filter(item => ["/admin", "/admin/orders", "/admin/tables", "/admin/menu", "/admin/settings"].includes(item.href)).map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link

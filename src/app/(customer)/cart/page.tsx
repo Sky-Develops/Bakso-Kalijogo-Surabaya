@@ -1,7 +1,8 @@
 "use client";
 
 import { useCartStore } from "@/store/cart-store";
-import { formatPrice, SHIPPING_FEE, SERVICE_FEE } from "@/lib/mock-data";
+import { useSettingsStore } from "@/store/settings-store";
+import { formatPrice } from "@/lib/mock-data";
 import { ArrowLeft, Minus, Plus, Trash2, Tag } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -30,9 +31,14 @@ export default function CartPage() {
 
   const [promoCode, setPromoCode] = useState("");
 
+  const { settings, loadSettings } = useSettingsStore();
+
+  const serviceFee = settings?.serviceFee ?? 1000;
+  const shippingFeeDef = settings?.deliveryFeeDefault ?? 8000;
+
   const subtotal = getSubtotal();
-  const shippingFee = orderType === "ONLINE" ? SHIPPING_FEE : 0;
-  const total = subtotal + shippingFee + SERVICE_FEE;
+  const shippingFee = orderType === "ONLINE" ? shippingFeeDef : 0;
+  const total = subtotal + shippingFee + serviceFee;
   const totalItems = items.reduce((s, i) => s + i.quantity, 0);
 
   const handleClearCart = () => {
@@ -41,6 +47,7 @@ export default function CartPage() {
   };
 
   useEffect(() => {
+    if (!settings) loadSettings();
     fetchMenu()
       .then((data) => {
         if (data.products.length === 0) return;
@@ -227,12 +234,12 @@ export default function CartPage() {
               {orderType === "ONLINE" && (
                 <div className="flex justify-between gap-4 text-neutral-600 dark:text-neutral-400">
                   <span>Ongkos Kirim</span>
-                  <span className="text-right">{formatPrice(SHIPPING_FEE)}</span>
+                  <span className="text-right">{formatPrice(shippingFeeDef)}</span>
                 </div>
               )}
               <div className="flex justify-between gap-4 text-neutral-600 dark:text-neutral-400">
                 <span>Biaya Layanan</span>
-                <span className="text-right">{formatPrice(SERVICE_FEE)}</span>
+                <span className="text-right">{formatPrice(serviceFee)}</span>
               </div>
               <div className="flex justify-between gap-4 text-neutral-600 dark:text-neutral-400">
                 <span>Diskon Promo</span>

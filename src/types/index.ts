@@ -83,3 +83,54 @@ export type Order = {
   items: OrderItem[];
   createdAt: string;
 };
+
+export type PrintTemplate = {
+  header: string;          // Baris atas: nama toko, alamat, no WA
+  subHeader: string;       // Sub-header: tagline / keterangan tambahan
+  showLogo: boolean;       // Tampilkan nama toko besar di atas
+  showOrderNumber: boolean;
+  showDate: boolean;
+  showCashier: boolean;
+  showCustomer: boolean;
+  showTableNumber: boolean;
+  showItemNotes: boolean;
+  showSubtotal: boolean;
+  showServiceFee: boolean;
+  showShippingFee: boolean;
+  dividerChar: string;     // Karakter pembatas, misal "-" atau "="
+  footer: string;          // Footer bawah: ucapan terima kasih, promo, dll
+  paperSize: "58mm" | "80mm";
+};
+
+export type WebsiteConfig = {
+  logoUrl: string;
+  bannerUrl: string;
+  isOpen: boolean;
+  announcement: string;
+  about: string;
+  locationUrl: string;
+};
+
+export type PaymentConfig = {
+  cashEnabled: boolean;
+  transferEnabled: boolean;
+  qrisEnabled: boolean;
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountHolder: string;
+  qrisImageUrl: string;
+};
+
+export type StoreSettings = {
+  id: number;
+  restaurantName: string;
+  whatsappNumber: string;
+  address: string;
+  serviceFee: number;
+  deliveryFeeDefault: number;
+  printTemplate: PrintTemplate;
+  websiteConfig: WebsiteConfig;
+  paymentConfig: PaymentConfig;
+  createdAt?: string;
+  updatedAt?: string;
+};

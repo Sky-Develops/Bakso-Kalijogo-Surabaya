@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { MessageCircle, QrCode, ShoppingCart, Store } from "lucide-react";
+import { MapPin, MessageCircle, QrCode, ShoppingCart, Store } from "lucide-react";
 import { useCartStore } from "@/store/cart-store";
+import { useSettingsStore } from "@/store/settings-store";
 import { products } from "@/lib/mock-data";
 import { fetchMenu } from "@/lib/menu-api";
 import { ProductCard } from "@/components/product-card";
@@ -16,6 +17,8 @@ export default function HomePage() {
   const syncProducts = useCartStore((s) => s.syncProducts);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [homeProducts, setHomeProducts] = useState<Product[]>(products);
+  const { settings, loadSettings } = useSettingsStore();
+  const websiteConfig = settings?.websiteConfig;
   const heroProduct = homeProducts[0] ?? products[0];
   const featuredProducts = homeProducts
     .filter((product) => product.isAvailable)
@@ -23,6 +26,9 @@ export default function HomePage() {
 
   useEffect(() => {
     let active = true;
+    
+    // Load settings
+    if (!settings) loadSettings();
 
     fetchMenu()
       .then((data) => {
@@ -45,9 +51,13 @@ export default function HomePage() {
             <div className="mb-8 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/12">
-                  <Store className="h-5 w-5" />
+                  {websiteConfig?.logoUrl ? (
+                    <img src={websiteConfig.logoUrl} alt={settings?.restaurantName || "Logo restoran"} className="h-full w-full rounded-lg object-cover" />
+                  ) : (
+                    <Store className="h-5 w-5" />
+                  )}
                 </div>
-                <span className="text-lg font-bold">Bakso Kalijogo</span>
+                <span className="text-lg font-bold">{settings?.restaurantName || "Bakso Kalijogo"}</span>
               </div>
               <Link href="/cart" className="relative rounded-full p-2 hover:bg-white/10">
                 <ShoppingCart className="h-6 w-6" />
@@ -65,12 +75,16 @@ export default function HomePage() {
                   Khas Surabaya sejak 1995
                 </p>
                 <h1 className="mt-2 max-w-xl text-4xl font-extrabold leading-tight md:text-6xl">
-                  Bakso Kalijogo
+                  {settings?.restaurantName || "Bakso Kalijogo"}
                 </h1>
                 <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/75 md:text-base">
-                  Bakso sapi segar, kuah kaldu gurih, dan mie ayam rumahan untuk
-                  makan di tempat, takeaway, atau pesan dari rumah.
+                  {websiteConfig?.about || "Bakso sapi segar, kuah kaldu gurih, dan mie ayam rumahan untuk makan di tempat, takeaway, atau pesan dari rumah."}
                 </p>
+                {websiteConfig?.announcement && (
+                  <p className="mt-4 inline-flex rounded-full bg-white/12 px-4 py-2 text-xs font-semibold text-white">
+                    {websiteConfig.announcement}
+                  </p>
+                )}
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link
                     href="/menu"
@@ -88,8 +102,8 @@ export default function HomePage() {
               </div>
 
               <ProductImage
-                src={heroProduct.imageUrl}
-                alt={heroProduct.imageAlt ?? heroProduct.name}
+                src={websiteConfig?.bannerUrl || heroProduct.imageUrl}
+                alt={websiteConfig?.bannerUrl ? "Banner promo restoran" : heroProduct.imageAlt ?? heroProduct.name}
                 className="h-56 w-full rounded-2xl shadow-2xl shadow-black/20 md:h-72"
                 sizes="(max-width: 768px) 100vw, 460px"
                 priority
@@ -145,10 +159,19 @@ export default function HomePage() {
               Tentang Kami
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
-              Bakso Kalijogo berdiri sejak 1995 di Surabaya. Kami memakai daging
-              sapi pilihan dan kuah kaldu yang dimasak perlahan untuk rasa yang
-              konsisten.
+              {websiteConfig?.about || "Bakso Kalijogo berdiri sejak 1995 di Surabaya. Kami memakai daging sapi pilihan dan kuah kaldu yang dimasak perlahan untuk rasa yang konsisten."}
             </p>
+            {websiteConfig?.locationUrl && (
+              <a
+                href={websiteConfig.locationUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#2D5016] px-4 py-2 text-sm font-bold text-white"
+              >
+                <MapPin className="h-4 w-4" />
+                Lihat Lokasi
+              </a>
+            )}
           </div>
 
           <div className="rounded-xl border border-neutral-100 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
@@ -159,7 +182,7 @@ export default function HomePage() {
               {[
                 { icon: ShoppingCart, title: "Order Online", desc: "Pilih menu lalu checkout" },
                 { icon: QrCode, title: "Scan QR Meja", desc: "Pesan langsung dari meja" },
-                { icon: MessageCircle, title: "WhatsApp", desc: "0812-3456-7890" },
+                { icon: MessageCircle, title: "WhatsApp", desc: settings?.whatsappNumber || "0812-3456-7890" },
               ].map((item) => (
                 <div key={item.title} className="flex items-center gap-3">
                   <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#2D5016]/10 text-[#2D5016]">
@@ -179,9 +202,9 @@ export default function HomePage() {
 
         <footer className="bg-[#1C1917] px-5 py-5 text-center text-xs text-white/60">
           <p className="mb-1 font-semibold text-white/80">
-            Copyright 2025 Bakso Kalijogo - Surabaya
+            Copyright 2026 {settings?.restaurantName || "Bakso Kalijogo"}
           </p>
-          <p>Jl. Kalijogo No.12, Surabaya - 0812-3456-7890</p>
+          <p>{settings?.address || "Jl. Kalijogo No.12, Surabaya"} - {settings?.whatsappNumber || "0812-3456-7890"}</p>
         </footer>
       </div>
 

@@ -61,6 +61,11 @@ export function MenuDetailSheet({ product, open, onClose }: MenuDetailSheetProps
         </button>
 
         <div className="relative h-60 overflow-hidden rounded-t-3xl bg-stone-100 dark:bg-neutral-800 md:h-72">
+          {isSoldOut && (
+            <span className="absolute right-4 top-4 z-10 rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white shadow-sm">
+              Habis
+            </span>
+          )}
           {product.badge && (
             <span
               className={`absolute left-4 top-4 z-10 rounded-full px-3 py-1 text-xs font-bold text-white ${
@@ -73,7 +78,7 @@ export function MenuDetailSheet({ product, open, onClose }: MenuDetailSheetProps
           <ProductImage
             src={product.imageUrl}
             alt={product.imageAlt ?? product.name}
-            className="h-full w-full"
+            className={isSoldOut ? "h-full w-full opacity-60 grayscale" : "h-full w-full"}
             sizes="(max-width: 768px) 100vw, 672px"
             priority
           />

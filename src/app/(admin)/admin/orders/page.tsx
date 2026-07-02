@@ -8,10 +8,12 @@ import {
   Search,
   Truck,
   XCircle,
+  Printer
 } from "lucide-react";
 import { fetchOrders, updateOrder } from "@/lib/order-api";
 import { formatPrice, formatDate } from "@/lib/mock-data";
 import { createClient } from "@/utils/supabase/client";
+import { useSettingsStore } from "@/store/settings-store";
 import { Order, OrderStatus, PaymentStatus } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -60,6 +62,7 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [driverDrafts, setDriverDrafts] = useState<Record<string, DriverDraft>>({});
+  const { settings, loadSettings } = useSettingsStore();
 
   const syncDriverDrafts = useCallback((nextOrders: Order[]) => {
     setDriverDrafts((current) => {
@@ -89,8 +92,9 @@ export default function AdminOrdersPage() {
   }, [syncDriverDrafts]);
 
   useEffect(() => {
+    if (!settings) loadSettings();
     void loadOrders();
-  }, [loadOrders]);
+  }, [loadOrders, settings, loadSettings]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -186,6 +190,101 @@ export default function AdminOrdersPage() {
       },
       "Data driver diperbarui."
     );
+  };
+
+  const printReceipt = (order: Order) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const t = settings?.printTemplate;
+    const paperWidth = t?.paperSize === "80mm" ? "300px" : "200px";
+    const charWidth  = t?.paperSize === "80mm" ? 42 : 28;
+    const divChar    = t?.dividerChar ?? "-";
+    const divider    = divChar.repeat(charWidth);
+
+    // Header lines
+    const headerLines = (t?.header ?? "BAKSO KALIJOGO\nJl. Kalijogo No.12").split("\n");
+    const headerHtml = (t?.showLogo ?? true)
+      ? `<div style="text-align:center;margin-bottom:8px;">
+          <div style="font-size:15px;font-weight:bold;letter-spacing:1px;">${headerLines[0] ?? ""}</div>
+          ${headerLines.slice(1).map(l => `<div style="font-size:11px;color:#555;">${l}</div>`).join("")}
+        </div>`
+      : "";
+
+    const subHdr = t?.subHeader;
+    const subHeaderHtml = subHdr
+      ? `<div style="text-align:center;font-size:10px;font-weight:600;letter-spacing:1px;color:#666;margin-bottom:4px;">${subHdr}</div>`
+      : "";
+
+    // Info rows
+    const infoRows = [
+      t?.showOrderNumber  ? `<div class="row"><span>No. Order</span><span>${order.orderNumber}</span></div>` : "",
+      t?.showDate         ? `<div class="row"><span>Tanggal</span><span>${formatDate(order.createdAt)}</span></div>` : "",
+      t?.showCashier      ? `<div class="row"><span>Kasir</span><span>Admin</span></div>` : "",
+      t?.showCustomer     ? `<div class="row"><span>Pelanggan</span><span>${order.customerName}</span></div>` : "",
+      (t?.showTableNumber && order.orderType === "DINE_IN") ? `<div class="row"><span>Meja</span><span>${order.tableNumber ?? "-"}</span></div>` : "",
+    ].filter(Boolean).join("\n");
+
+    // Items
+    const itemsHtml = order.items.map(item => `
+      <div style="font-size:12px;font-weight:600;margin-bottom:1px;">${item.productName}</div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#444;margin-bottom:${t?.showItemNotes && item.notes ? "0" : "6px"};">
+        <span>${item.quantity} x ${formatPrice(item.price)}</span>
+        <span>${formatPrice(item.price * item.quantity)}</span>
+      </div>
+      ${(t?.showItemNotes && item.notes) ? `<div style="font-size:10px;color:#888;font-style:italic;margin-bottom:6px;padding-left:8px;">*${item.notes}</div>` : ""}
+    `).join("");
+
+    // Totals
+    const totalsHtml = [
+      (t?.showSubtotal ?? true)    ? `<div class="row"><span>Subtotal</span><span>${formatPrice(order.subtotal)}</span></div>` : "",
+      (t?.showServiceFee ?? true)  ? `<div class="row"><span>Biaya Layanan</span><span>${formatPrice(order.serviceFee)}</span></div>` : "",
+      (t?.showShippingFee ?? true) && order.shippingFee > 0
+        ? `<div class="row"><span>Ongkos Kirim</span><span>${formatPrice(order.shippingFee)}</span></div>` : "",
+    ].filter(Boolean).join("\n");
+
+    // Footer lines
+    const footerLines = (t?.footer ?? "Terima Kasih\nSelamat Menikmati").split("\n");
+    const footerHtml = `<div style="text-align:center;margin-top:10px;">
+      <div style="font-size:12px;font-weight:bold;">${footerLines[0] ?? ""}</div>
+      ${footerLines.slice(1).map(l => `<div style="font-size:10px;color:#666;">${l}</div>`).join("")}
+    </div>`;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Struk ${order.orderNumber}</title>
+          <style>
+            @page { margin: 0; }
+            body { font-family: monospace; width: ${paperWidth}; margin: 0 auto; padding: 12px; color: black; }
+            .divider { font-size: 9px; color: #aaa; letter-spacing: -1px; overflow: hidden; white-space: nowrap; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
+            .total-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin-top: 6px; border-top: 1px dashed #000; padding-top: 4px; }
+          </style>
+        </head>
+        <body>
+          ${headerHtml}
+          ${subHeaderHtml}
+          <div class="divider">${divider}</div>
+          ${infoRows}
+          <div class="divider">${divider}</div>
+          ${itemsHtml}
+          <div class="divider">${divider}</div>
+          ${totalsHtml}
+          <div class="total-row"><span>TOTAL</span><span>${formatPrice(order.totalAmount)}</span></div>
+          <div class="row" style="margin-top:4px;"><span>Pembayaran</span><span>${order.paymentMethod}</span></div>
+          <div class="divider">${divider}</div>
+          ${footerHtml}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
   };
 
   return (
@@ -360,6 +459,12 @@ export default function AdminOrdersPage() {
                       className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-red-900/10 dark:text-red-400"
                     >
                       <XCircle className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => printReceipt(order)}
+                      className="rounded-lg bg-neutral-100 px-3 py-2 text-xs font-bold text-neutral-600 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400"
+                    >
+                      <Printer className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -540,6 +645,13 @@ export default function AdminOrdersPage() {
                               className="rounded-lg bg-red-50 p-1.5 text-red-500 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-red-900/10"
                             >
                               <XCircle className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => printReceipt(order)}
+                              title="Print Struk"
+                              className="rounded-lg bg-neutral-100 p-1.5 text-neutral-600 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400"
+                            >
+                              <Printer className="h-4 w-4" />
                             </button>
                           </div>
                         </td>

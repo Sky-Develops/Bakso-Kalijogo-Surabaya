@@ -7,6 +7,8 @@ import { createClient } from "@/utils/supabase/client";
 import { Order } from "@/types";
 import { BarChart3, Download, Calendar, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type ReportPeriod = "Harian" | "Mingguan" | "Bulanan";
 const REPORT_PERIODS: ReportPeriod[] = ["Harian", "Mingguan", "Bulanan"];
@@ -81,8 +83,48 @@ export default function AdminReportsPage() {
         </div>
         <button 
           onClick={() => {
-            toast.info("Menyiapkan dokumen PDF...");
-            setTimeout(() => window.print(), 500);
+            try {
+              toast.info("Menyiapkan dokumen PDF...");
+              const doc = new jsPDF();
+              
+              doc.setFontSize(18);
+              doc.text("Laporan Penjualan POS Kalijogo", 14, 22);
+              
+              doc.setFontSize(11);
+              doc.setTextColor(100);
+              doc.text(`Periode: ${period}`, 14, 30);
+              
+              doc.setFontSize(12);
+              doc.setTextColor(0);
+              doc.text(`Total Pendapatan: ${formatPrice(totalRevenue)}`, 14, 45);
+              doc.text(`Total Pesanan Sukses: ${completedOrders.length}`, 14, 52);
+              doc.text(`Rata-rata Nilai Pesanan: ${formatPrice(averageOrderValue)}`, 14, 59);
+              
+              const tableData = bestSellingItems.map((item) => [
+                item.name,
+                item.qty.toString(),
+                formatPrice(item.rev)
+              ]);
+              
+              if (tableData.length > 0) {
+                autoTable(doc, {
+                  startY: 70,
+                  head: [["Menu Terlaris", "Terjual", "Pendapatan"]],
+                  body: tableData,
+                  theme: "grid",
+                  styles: { fontSize: 10, cellPadding: 5 },
+                  headStyles: { fillColor: [45, 80, 22] }
+                });
+              } else {
+                doc.text("Belum ada data menu selesai.", 14, 75);
+              }
+              
+              doc.save(`Laporan-Penjualan-${period}.pdf`);
+              toast.success("PDF berhasil diunduh");
+            } catch (err) {
+              toast.error("Gagal membuat PDF");
+              console.error(err);
+            }
           }}
           className="flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-xl text-sm font-bold hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-colors"
         >

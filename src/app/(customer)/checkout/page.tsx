@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart-store";
-import { SERVICE_FEE, formatPrice } from "@/lib/mock-data";
+import { useSettingsStore } from "@/store/settings-store";
+import { formatPrice } from "@/lib/mock-data";
 import { CUSTOMER_PHONE_KEY, createOrder } from "@/lib/order-api";
 import { DELIVERY_AREAS, getDeliveryArea } from "@/lib/delivery";
 import { PaymentMethod, OrderType } from "@/types";
@@ -103,17 +104,48 @@ export default function CheckoutPage() {
     },
   });
 
+  const { settings, loadSettings } = useSettingsStore();
+  const paymentConfig = settings?.paymentConfig;
+
+  const serviceFee = settings?.serviceFee ?? 1000;
+  // If we wanted to use default delivery fee for some reason, it's settings?.deliveryFeeDefault
+  // but checkout uses distance-based fee if we keep that. I'll just use the serviceFee.
+
   const watchedOrderType = useWatch({ control, name: "orderType" });
   const watchedDeliveryArea = useWatch({ control, name: "deliveryArea" });
   const watchedPayment = useWatch({ control, name: "paymentMethod" });
+  const availablePaymentOptions = useMemo(() => {
+    return PAYMENT_OPTIONS.filter((option) => {
+      if (option.value === "CASH") return paymentConfig?.cashEnabled ?? true;
+      if (option.value === "TRANSFER_BANK") return paymentConfig?.transferEnabled ?? true;
+      if (option.value === "QRIS") return paymentConfig?.qrisEnabled ?? true;
+      return true;
+    });
+  }, [paymentConfig]);
   const selectedDeliveryArea = getDeliveryArea(watchedDeliveryArea ?? "0-3km");
+  
   const shippingFee =
     watchedOrderType === "ONLINE" && selectedDeliveryArea.available
       ? selectedDeliveryArea.fee
       : 0;
-  const total = subtotal + shippingFee + SERVICE_FEE;
+      
+  const total = subtotal + shippingFee + serviceFee;
   const deliveryBlocked =
     watchedOrderType === "ONLINE" && !selectedDeliveryArea.available;
+  const paymentBlocked = availablePaymentOptions.length === 0;
+
+  useEffect(() => {
+    if (!settings) {
+      void loadSettings();
+    }
+  }, [loadSettings, settings]);
+
+  useEffect(() => {
+    if (availablePaymentOptions.length === 0) return;
+    if (!availablePaymentOptions.some((option) => option.value === watchedPayment)) {
+      setValue("paymentMethod", availablePaymentOptions[0].value);
+    }
+  }, [availablePaymentOptions, setValue, watchedPayment]);
 
   const onSubmit = async (data: CheckoutFormValues) => {
     if (items.length === 0) {
@@ -134,7 +166,7 @@ export default function CheckoutPage() {
         orderType: data.orderType,
         paymentMethod: data.paymentMethod,
         shippingFee: data.orderType === "ONLINE" ? shippingFee : 0,
-        serviceFee: SERVICE_FEE,
+        serviceFee: serviceFee,
         items: items.map((item) => ({
           productId: item.product.id,
           productName: item.product.name,
@@ -383,7 +415,12 @@ export default function CheckoutPage() {
               Metode Pembayaran
             </p>
             <div className="space-y-2">
-              {PAYMENT_OPTIONS.map((opt) => {
+              {availablePaymentOptions.length === 0 && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+                  Belum ada metode pembayaran yang aktif.
+                </div>
+              )}
+              {availablePaymentOptions.map((opt) => {
                 const Icon = opt.icon;
                 return (
                   <label
@@ -413,6 +450,26 @@ export default function CheckoutPage() {
                 );
               })}
             </div>
+            {watchedPayment === "TRANSFER_BANK" && paymentConfig?.transferEnabled && (
+              <div className="mt-3 rounded-xl border border-[#2D5016]/20 bg-[#2D5016]/5 p-3 text-sm">
+                <p className="font-bold text-neutral-900 dark:text-white">
+                  {paymentConfig.bankName || "Bank"} {paymentConfig.bankAccountNumber || "-"}
+                </p>
+                <p className="text-xs text-neutral-500">a.n. {paymentConfig.bankAccountHolder || settings?.restaurantName || "Restoran"}</p>
+                <p className="mt-2 text-xs text-neutral-500">Transfer sesuai nominal berikut:</p>
+                <p className="text-lg font-extrabold text-[#2D5016]">{formatPrice(total)}</p>
+              </div>
+            )}
+            {watchedPayment === "QRIS" && paymentConfig?.qrisEnabled && (
+              <div className="mt-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+                {paymentConfig.qrisImageUrl ? (
+                  <img src={paymentConfig.qrisImageUrl} alt="QRIS pembayaran" className="mx-auto h-40 w-40 rounded-lg object-contain" />
+                ) : (
+                  <p className="text-center text-xs text-neutral-500">Gambar QRIS belum diatur admin.</p>
+                )}
+                <p className="mt-2 text-center text-xs text-neutral-500">Bayar sesuai total: <span className="font-bold text-[#2D5016]">{formatPrice(total)}</span></p>
+              </div>
+            )}
           </section>
 
           <section className="rounded-xl border border-neutral-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
@@ -445,7 +502,7 @@ export default function CheckoutPage() {
               )}
               <div className="flex justify-between gap-4 text-neutral-500">
                 <span>Biaya Layanan</span>
-                <span className="text-right">{formatPrice(SERVICE_FEE)}</span>
+                <span className="text-right">{formatPrice(serviceFee)}</span>
               </div>
               <div className="flex justify-between gap-4 border-t border-neutral-100 pt-2 font-bold text-neutral-900 dark:border-neutral-800 dark:text-white">
                 <span>Total</span>
@@ -460,10 +517,10 @@ export default function CheckoutPage() {
         <button
           type="submit"
           form="checkout-form"
-          disabled={isSubmitting || deliveryBlocked}
+          disabled={isSubmitting || deliveryBlocked || paymentBlocked}
           className={cn(
             "flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2D5016] py-4 font-bold text-white shadow-lg transition-all active:scale-95",
-            isSubmitting || deliveryBlocked
+            isSubmitting || deliveryBlocked || paymentBlocked
               ? "cursor-not-allowed opacity-70"
               : "hover:bg-[#2D5016]/90"
           )}
@@ -474,7 +531,7 @@ export default function CheckoutPage() {
               Memproses Pesanan...
             </>
           ) : (
-            deliveryBlocked ? "Alamat di luar radius" : "Buat Pesanan"
+            paymentBlocked ? "Pembayaran belum tersedia" : deliveryBlocked ? "Alamat di luar radius" : "Buat Pesanan"
           )}
         </button>
       </div>

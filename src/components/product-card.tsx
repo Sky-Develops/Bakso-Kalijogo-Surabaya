@@ -25,9 +25,9 @@ export function ProductCard({ product, onOpenDetail }: ProductCardProps) {
       onClick={() => onOpenDetail(product)}
     >
       {/* Image Area */}
-      <div className="relative">
+      <div className={cn("relative", isSoldOut && "bg-neutral-200 dark:bg-neutral-800")}>
         {isSoldOut && (
-          <span className="absolute right-2 top-2 z-10 rounded-full bg-neutral-900/80 px-2 py-0.5 text-[10px] font-bold text-white">
+          <span className="absolute right-2 top-2 z-10 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
             Habis
           </span>
         )}
