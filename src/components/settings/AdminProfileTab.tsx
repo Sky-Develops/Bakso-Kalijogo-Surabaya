@@ -103,16 +103,16 @@ export function AdminProfileTab() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Tidak ada sesi login.");
 
-      // Update profile table
+      // Update profile table, create it first if the auth user does not have a profile row yet.
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({
+        .upsert({
+          id: user.id,
           full_name: profile.fullName,
           phone: profile.phone,
           email: profile.email,
           username: profile.username || null,
-        })
-        .eq("id", user.id);
+        }, { onConflict: "id" });
       if (profileError) throw profileError;
 
       // Update email in auth if changed
@@ -120,11 +120,6 @@ export function AdminProfileTab() {
         const { error: emailError } = await supabase.auth.updateUser({ email: profile.email });
         if (emailError) throw emailError;
         toast.info("Email diperbarui! Cek inbox email baru Anda untuk konfirmasi.");
-      }
-
-      // Update phone in auth
-      if (profile.phone && profile.phone !== user.phone) {
-        await supabase.auth.updateUser({ phone: profile.phone });
       }
 
       toast.success("Profil admin berhasil diperbarui!");

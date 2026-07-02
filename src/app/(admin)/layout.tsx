@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
+  Calculator,
   ShoppingBag,
   UtensilsCrossed,
   Settings,
@@ -19,6 +20,7 @@ import { toast } from "sonner";
 
 const NAV_ITEMS = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/admin/cashier", icon: Calculator, label: "Kasir" },
   { href: "/admin/orders", icon: ShoppingBag, label: "Pesanan" },
   { href: "/admin/tables", icon: Grid, label: "Meja" },
   { href: "/admin/menu", icon: UtensilsCrossed, label: "Menu" },
@@ -119,7 +121,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Mobile Bottom Navigation */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-around h-16 px-1 z-50 safe-area-bottom">
-          {NAV_ITEMS.filter(item => ["/admin", "/admin/orders", "/admin/tables", "/admin/menu", "/admin/settings"].includes(item.href)).map((item) => {
+          {NAV_ITEMS.filter(item => ["/admin", "/admin/cashier", "/admin/orders", "/admin/tables", "/admin/settings"].includes(item.href)).map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
