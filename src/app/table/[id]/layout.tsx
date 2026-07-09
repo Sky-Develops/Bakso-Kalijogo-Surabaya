@@ -24,19 +24,21 @@ export default function TableLayout({
   }, [id, setTableNumber]);
 
   return (
-    <div className="min-h-[100dvh] bg-neutral-50 dark:bg-neutral-950 flex flex-col max-w-lg mx-auto">
-      <header className="sticky top-0 z-50 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-[#2D5016]/10 flex items-center justify-center text-[#2D5016]">
-            <Store className="w-4 h-4" />
+    <div className="min-h-[100dvh] bg-neutral-50 dark:bg-neutral-950 flex justify-center">
+      <div className="w-full max-w-6xl">
+        <header className="sticky top-0 z-50 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-[#2D5016]/10 flex items-center justify-center text-[#2D5016]">
+              <Store className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-neutral-900 dark:text-white">Bakso Kalijogo</span>
           </div>
-          <span className="font-bold text-neutral-900 dark:text-white">Bakso Kalijogo</span>
-        </div>
-        <div className="bg-[#2D5016] text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
-          🪑 Meja {id}
-        </div>
-      </header>
-      <main className="flex-1 pb-6">{children}</main>
+          <div className="bg-[#2D5016] text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+            🪑 Meja {id}
+          </div>
+        </header>
+        <main className="flex-1 pb-6 px-4 sm:px-6 lg:px-8">{children}</main>
+      </div>
     </div>
   );
 }

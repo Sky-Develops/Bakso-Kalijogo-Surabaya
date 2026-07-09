@@ -74,11 +74,53 @@ export function QrTableTab() {
         <head>
           <title>Print QR Meja ${tableNum}</title>
           <style>
-            body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-            .container { text-align: center; border: 2px dashed #ccc; padding: 40px; border-radius: 16px; }
-            h1 { font-size: 24px; margin-bottom: 10px; }
-            p { color: #666; margin-bottom: 30px; }
-            .qr { margin: 0 auto; display: flex; justify-content: center; }
+            body {
+              font-family: sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              margin: 0;
+              padding: 20px;
+              background: #f8f8f8;
+            }
+            .container {
+              text-align: center;
+              border: 2px dashed #ccc;
+              padding: 32px 24px;
+              border-radius: 16px;
+              max-width: 360px;
+              width: 100%;
+              background: #fff;
+              box-sizing: border-box;
+              word-wrap: break-word;
+              overflow-wrap: break-word;
+            }
+            h1 {
+              font-size: 24px;
+              margin-bottom: 10px;
+              word-break: break-word;
+            }
+            p {
+              color: #666;
+              margin-bottom: 30px;
+              white-space: normal;
+              word-break: break-word;
+              overflow-wrap: anywhere;
+              font-size: 14px;
+              line-height: 1.5;
+            }
+            .qr {
+              margin: 0 auto;
+              display: flex;
+              justify-content: center;
+              width: 100%;
+            }
+            .qr svg {
+              width: 100%;
+              max-width: 240px;
+              height: auto;
+            }
           </style>
         </head>
         <body>
