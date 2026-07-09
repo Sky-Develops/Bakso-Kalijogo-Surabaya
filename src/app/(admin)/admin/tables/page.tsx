@@ -26,10 +26,11 @@ import {
   regenerateTableQr,
   updateTable,
 } from "@/lib/table-api";
+import { fetchOrder } from "@/lib/order-api";
 import { formatPrice } from "@/lib/mock-data";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
-import { DiningTable, TableStatus } from "@/types";
+import { DiningTable, Order, TableStatus } from "@/types";
 import { toast } from "sonner";
 
 type TableStatusFilter = "ALL" | TableStatus;
@@ -81,6 +82,8 @@ export default function AdminTablesPage() {
   const [editingTable, setEditingTable] = useState<DiningTable | null>(null);
   const [form, setForm] = useState<TableFormState>(EMPTY_FORM);
   const [qrPreview, setQrPreview] = useState<DiningTable | null>(null);
+  const [orderDetailPreview, setOrderDetailPreview] = useState<Order | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState<string | null>(null);
 
   const loadTables = useCallback(async () => {
     try {
@@ -94,7 +97,11 @@ export default function AdminTablesPage() {
   }, []);
 
   useEffect(() => {
-    void loadTables();
+    const timeoutId = window.setTimeout(() => {
+      void loadTables();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadTables]);
 
   useEffect(() => {
@@ -226,6 +233,18 @@ export default function AdminTablesPage() {
     toast.success("Link QR disalin.");
   };
 
+  const handleViewOrder = async (orderId: string) => {
+    setLoadingOrder(orderId);
+    try {
+      const { order } = await fetchOrder(orderId);
+      setOrderDetailPreview(order);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal memuat detail pesanan.");
+    } finally {
+      setLoadingOrder(null);
+    }
+  };
+
   return (
     <div className="flex min-h-[calc(100vh-6rem)] flex-col gap-5 overflow-x-hidden">
       <div className="flex flex-col justify-between gap-4 sm:flex-row">
@@ -345,15 +364,22 @@ export default function AdminTablesPage() {
                       {table.activeQrSession ? "Aktif" : "Belum aktif"}
                     </p>
                     {table.currentOrder && (
-                      <div className="mt-3 rounded-lg bg-neutral-50 p-2 dark:bg-neutral-900">
-                        <p className="flex items-center gap-1 text-xs font-bold text-amber-600">
-                          <Clock className="h-3.5 w-3.5" />
-                          {table.currentOrder.orderNumber}
-                        </p>
-                        <p className="text-xs text-neutral-500">
+                      <button
+                        onClick={() => handleViewOrder(table.currentOrder!.id)}
+                        disabled={loadingOrder === table.currentOrder!.id}
+                        className="mt-3 w-full text-left rounded-lg bg-neutral-50 p-2 hover:bg-neutral-100 transition-colors dark:bg-neutral-900 dark:hover:bg-neutral-800"
+                      >
+                        <div className="flex items-center justify-between gap-1 text-xs font-bold text-amber-600">
+                          <span className="flex items-center gap-1">
+                            {loadingOrder === table.currentOrder!.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
+                            {table.currentOrder.orderNumber}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-neutral-500">
                           {formatPrice(table.currentOrder.totalAmount)}
                         </p>
-                      </div>
+                        <p className="mt-1 text-[10px] text-neutral-400 font-medium">Lihat Detail →</p>
+                      </button>
                     )}
                     {!table.currentOrder && table.status === "AVAILABLE" && (
                       <p className="mt-3 flex items-center gap-1 text-xs font-semibold text-emerald-600">
@@ -572,6 +598,64 @@ export default function AdminTablesPage() {
               >
                 Cetak
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {orderDetailPreview && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4 print:hidden">
+          <div className="mx-auto my-10 max-w-lg rounded-xl bg-white shadow-xl dark:bg-neutral-950">
+            <div className="flex items-center justify-between border-b border-neutral-100 p-4 dark:border-neutral-800">
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Detail Pesanan {orderDetailPreview.orderNumber}</h2>
+                <p className="text-sm text-neutral-500">
+                  {new Date(orderDetailPreview.createdAt).toLocaleString("id-ID")}
+                </p>
+              </div>
+              <button onClick={() => setOrderDetailPreview(null)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4 grid gap-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-neutral-500">Nama Pelanggan</p>
+                  <p className="font-bold text-neutral-900 dark:text-white">{orderDetailPreview.customerName}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-500">Status</p>
+                  <p className="font-bold text-neutral-900 dark:text-white">{orderDetailPreview.status}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-500">Pax / Catatan</p>
+                  <p className="font-bold text-neutral-900 dark:text-white">{orderDetailPreview.notes || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-500">Total Tagihan</p>
+                  <p className="font-bold text-[#2D5016]">{formatPrice(orderDetailPreview.totalAmount)}</p>
+                </div>
+              </div>
+              
+              <div className="mt-2 border-t border-neutral-100 pt-4 dark:border-neutral-800">
+                <h3 className="font-bold mb-3 text-sm text-neutral-900 dark:text-white">Daftar Menu</h3>
+                <div className="grid gap-2">
+                  {orderDetailPreview.items.map((item) => (
+                    <div key={item.id} className="flex justify-between text-sm">
+                      <div className="flex gap-2">
+                        <span className="font-bold text-neutral-900 dark:text-white">{item.quantity}x</span>
+                        <span className="text-neutral-700 dark:text-neutral-300">
+                          {item.productName}
+                          {item.notes && <span className="block text-xs font-medium text-amber-600 mt-0.5">Catatan: {item.notes}</span>}
+                        </span>
+                      </div>
+                      <span className="font-bold text-neutral-900 dark:text-white">
+                        {formatPrice(item.price * item.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

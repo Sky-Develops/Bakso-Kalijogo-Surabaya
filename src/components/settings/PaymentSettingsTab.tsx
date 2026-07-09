@@ -148,7 +148,10 @@ export function PaymentSettingsTab({ settings, onSave, isLoading }: PaymentSetti
             <div className="flex gap-3">
               <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900">
                 {formData.qrisImageUrl ? (
-                  <img src={formData.qrisImageUrl} alt="QRIS" className="h-full w-full object-contain" />
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={formData.qrisImageUrl} alt="QRIS" className="h-full w-full object-contain" />
+                  </>
                 ) : (
                   <QrCode className="h-8 w-8 text-neutral-400" />
                 )}

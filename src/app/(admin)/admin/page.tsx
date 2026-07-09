@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { fetchOrders } from "@/lib/order-api";
 import { formatPrice } from "@/lib/mock-data";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { createClient } from "@/utils/supabase/client";
 import { Order } from "@/types";
 
@@ -40,7 +41,11 @@ export default function AdminDashboardPage() {
   }, []);
 
   useEffect(() => {
-    void loadOrders();
+    const timeoutId = window.setTimeout(() => {
+      void loadOrders();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadOrders]);
 
   useEffect(() => {
@@ -100,6 +105,32 @@ export default function AdminDashboardPage() {
     ];
   }, [orders]);
 
+  const chartData = useMemo(() => {
+    const map = new Map<string, number>();
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString("id-ID", { month: 'short', day: 'numeric' });
+      map.set(dateStr, 0);
+    }
+    
+    orders.forEach(order => {
+      if (order.status === "DELIVERED") {
+        const d = new Date(order.createdAt);
+        const diff = now.getTime() - d.getTime();
+        if (diff <= 7 * 24 * 60 * 60 * 1000) {
+           const dateStr = d.toLocaleDateString("id-ID", { month: 'short', day: 'numeric' });
+           if (map.has(dateStr)) {
+             map.set(dateStr, map.get(dateStr)! + order.totalAmount);
+           }
+        }
+      }
+    });
+
+    return Array.from(map.entries()).map(([date, revenue]) => ({ date, revenue }));
+  }, [orders]);
+
   return (
     <div className="space-y-6 overflow-x-hidden">
       <div>
@@ -134,6 +165,21 @@ export default function AdminDashboardPage() {
             </div>
           );
         })}
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-950">
+        <h2 className="text-lg font-bold mb-4">Penjualan 7 Hari Terakhir</h2>
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} tickFormatter={(value) => `Rp${value/1000}k`} />
+              <Tooltip cursor={{ fill: 'transparent' }} formatter={(value) => formatPrice(Number(value))} />
+              <Bar dataKey="revenue" fill="#2D5016" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">

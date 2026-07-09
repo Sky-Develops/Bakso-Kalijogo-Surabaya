@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 
-export type AdminRole = "OWNER" | "ADMIN" | "KASIR";
+export type AdminRole = "OWNER" | "ADMIN" | "KASIR" | "DAPUR";
 
 export type AdminProfile = {
   id: string;
@@ -8,17 +8,44 @@ export type AdminProfile = {
   role: AdminRole;
 };
 
-export const ALL_ADMIN_ROLES: AdminRole[] = ["OWNER", "ADMIN", "KASIR"];
+export const ALL_ADMIN_ROLES: AdminRole[] = ["OWNER", "ADMIN", "KASIR", "DAPUR"];
 export const MANAGER_ROLES: AdminRole[] = ["OWNER", "ADMIN"];
 
 export function canAccessAdminPath(role: AdminRole, pathname: string) {
   if (role === "OWNER" || role === "ADMIN") return true;
 
-  return (
-    pathname === "/admin" ||
-    pathname.startsWith("/admin/orders") ||
-    pathname.startsWith("/admin/tables")
-  );
+  if (role === "KASIR") {
+    return (
+      pathname === "/admin" ||
+      pathname.startsWith("/admin/cashier") ||
+      pathname.startsWith("/admin/orders") ||
+      pathname.startsWith("/admin/tables") ||
+      pathname.startsWith("/admin/menu") ||
+      pathname.startsWith("/admin/categories")
+    );
+  }
+
+  if (role === "DAPUR") {
+    return pathname === "/admin" || pathname.startsWith("/admin/orders");
+  }
+
+  return false;
+}
+
+function normalizeAdminRole(role: unknown): AdminRole | null {
+  if (typeof role !== "string") return null;
+
+  const normalizedRole = role.trim().toUpperCase();
+  if (
+    normalizedRole === "OWNER" ||
+    normalizedRole === "ADMIN" ||
+    normalizedRole === "KASIR" ||
+    normalizedRole === "DAPUR"
+  ) {
+    return normalizedRole;
+  }
+
+  return null;
 }
 
 export async function getAdminProfile() {
@@ -35,11 +62,12 @@ export async function getAdminProfile() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const profile = data
+  const role = normalizeAdminRole(data?.role);
+  const profile = data && role
     ? ({
         id: data.id as string,
         fullName: (data.full_name as string | null) ?? null,
-        role: data.role as AdminRole,
+        role,
       } satisfies AdminProfile)
     : null;
 

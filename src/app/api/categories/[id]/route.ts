@@ -78,6 +78,12 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   const { error } = await supabase.from("menu_categories").delete().eq("id", id);
 
   if (error) {
+    if (error.code === '23503') {
+      return NextResponse.json(
+        { error: "Kategori tidak bisa dihapus karena masih ada menu di dalamnya. Pindahkan atau hapus menu tersebut dulu." },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

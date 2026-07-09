@@ -1,9 +1,10 @@
 "use client";
 
-import { use, FormEvent, useState } from "react";
+import { use, FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Banknote, Loader2, QrCode, ShoppingBag } from "lucide-react";
 import { useCartStore } from "@/store/cart-store";
+import { useSettingsStore } from "@/store/settings-store";
 import { createOrder } from "@/lib/order-api";
 import { formatPrice, SERVICE_FEE } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,11 @@ export default function TableCheckoutPage({ params }: { params: Promise<{ id: st
   const [customerName, setCustomerName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "QRIS">("QRIS");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { settings, loadSettings } = useSettingsStore();
+
+  useEffect(() => {
+    if (!settings) void loadSettings();
+  }, [settings, loadSettings]);
 
   const subtotal = getSubtotal();
   const total = subtotal + SERVICE_FEE;
@@ -24,6 +30,11 @@ export default function TableCheckoutPage({ params }: { params: Promise<{ id: st
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (items.length === 0) return;
+
+    if (paymentMethod === "QRIS" && !settings?.paymentConfig?.qrisImageUrl) {
+      toast.error("Pembayaran QRIS belum tersedia saat ini, silakan pilih metode Tunai.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {

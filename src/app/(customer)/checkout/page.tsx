@@ -117,8 +117,12 @@ export default function CheckoutPage() {
   const availablePaymentOptions = useMemo(() => {
     return PAYMENT_OPTIONS.filter((option) => {
       if (option.value === "CASH") return paymentConfig?.cashEnabled ?? true;
-      if (option.value === "TRANSFER_BANK") return paymentConfig?.transferEnabled ?? true;
-      if (option.value === "QRIS") return paymentConfig?.qrisEnabled ?? true;
+      if (option.value === "TRANSFER_BANK") {
+        return (paymentConfig?.transferEnabled ?? true) && !!paymentConfig?.bankAccountNumber;
+      }
+      if (option.value === "QRIS") {
+        return (paymentConfig?.qrisEnabled ?? true) && !!paymentConfig?.qrisImageUrl;
+      }
       return true;
     });
   }, [paymentConfig]);
@@ -463,7 +467,10 @@ export default function CheckoutPage() {
             {watchedPayment === "QRIS" && paymentConfig?.qrisEnabled && (
               <div className="mt-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
                 {paymentConfig.qrisImageUrl ? (
-                  <img src={paymentConfig.qrisImageUrl} alt="QRIS pembayaran" className="mx-auto h-40 w-40 rounded-lg object-contain" />
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={paymentConfig.qrisImageUrl} alt="QRIS pembayaran" className="mx-auto h-40 w-40 rounded-lg object-contain" />
+                  </>
                 ) : (
                   <p className="text-center text-xs text-neutral-500">Gambar QRIS belum diatur admin.</p>
                 )}

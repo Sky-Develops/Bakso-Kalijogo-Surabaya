@@ -67,7 +67,11 @@ export default function AdminCategoriesPage() {
   }, []);
 
   useEffect(() => {
-    void loadCategories();
+    const timeoutId = window.setTimeout(() => {
+      void loadCategories();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadCategories]);
 
   const filteredCategories = useMemo(() => {

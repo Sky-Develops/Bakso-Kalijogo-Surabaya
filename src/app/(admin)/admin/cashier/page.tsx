@@ -12,6 +12,7 @@ import {
   ReceiptText,
   Search,
   ShoppingCart,
+  X,
   Trash2,
   Utensils,
 } from "lucide-react";
@@ -49,6 +50,7 @@ function isSoldOut(product: Product) {
 
 export default function AdminCashierPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<CashierItem[]>([]);
   const [search, setSearch] = useState("");
@@ -190,6 +192,7 @@ export default function AdminCashierPage() {
 
       setOrders((current) => [nextOrder, ...current.filter((order) => order.id !== nextOrder.id)]);
       resetTransaction();
+      setIsCartOpen(false);
       toast.success(payNow ? "Transaksi kasir selesai dan dibayar." : "Pesanan berhasil dibuat.");
       void loadData();
     } catch (error) {
@@ -215,8 +218,8 @@ export default function AdminCashierPage() {
   };
 
   return (
-    <div className="grid h-[calc(100vh-6rem)] min-h-0 gap-4 lg:grid-cols-[1fr_380px]">
-      <div className="flex min-h-0 flex-col gap-4">
+    <div className="grid h-[calc(100vh-6rem)] min-h-0 gap-4 lg:grid-cols-[1fr_380px] pb-[4.5rem] lg:pb-0">
+      <div className={cn("flex min-h-0 flex-col gap-4", orderType === "ONLINE" ? "hidden lg:flex" : "")}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Kasir POS</h1>
@@ -332,12 +335,27 @@ export default function AdminCashierPage() {
         </section>
       </div>
 
-      <aside className="flex min-h-0 flex-col rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
-        <div className="border-b border-neutral-100 p-4 dark:border-neutral-800">
+      <aside
+        className={cn(
+          "flex min-h-0 flex-col bg-white dark:bg-neutral-950",
+          "lg:relative lg:flex lg:rounded-2xl lg:border lg:border-neutral-200 lg:dark:border-neutral-800",
+          orderType === "ONLINE"
+            ? "flex rounded-2xl border border-neutral-200 dark:border-neutral-800"
+            : isCartOpen
+              ? "fixed inset-0 z-[60] m-0 border-none rounded-none"
+              : "hidden lg:flex"
+        )}
+      >
+        <div className="flex items-center justify-between border-b border-neutral-100 p-4 dark:border-neutral-800">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-[#2D5016]" />
             <p className="font-bold text-neutral-900 dark:text-white">Transaksi Baru</p>
           </div>
+          {orderType !== "ONLINE" && (
+            <button className="rounded-full p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 lg:hidden dark:hover:bg-neutral-800 dark:hover:text-neutral-300" onClick={() => setIsCartOpen(false)}>
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -477,6 +495,38 @@ export default function AdminCashierPage() {
           </div>
         </div>
       </aside>
+
+      {/* Order Type Toggle Mobile (When ONLINE) */}
+      {orderType === "ONLINE" && (
+        <div className="fixed bottom-[4.5rem] left-4 right-4 z-40 lg:hidden">
+          <button
+            onClick={() => setOrderType("DINE_IN")}
+            className="flex w-full items-center justify-center rounded-xl bg-neutral-900 p-4 font-bold text-white shadow-lg shadow-neutral-900/20 transition-all hover:bg-neutral-800 dark:bg-white dark:text-neutral-900"
+          >
+            Kembali ke Menu Kasir
+          </button>
+        </div>
+      )}
+
+      {/* Floating Button Mobile (Cart) */}
+      {!isCartOpen && cart.length > 0 && orderType !== "ONLINE" && (
+        <div className="fixed bottom-[4.5rem] left-4 right-4 z-40 lg:hidden">
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="flex w-full items-center justify-between rounded-xl bg-[#2D5016] p-4 font-bold text-white shadow-lg shadow-[#2D5016]/20 transition-all hover:bg-[#2D5016]/90"
+          >
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              <span>{cart.reduce((sum, item) => sum + item.quantity, 0)} item</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span>Lanjut Pembayaran</span>
+              <span>•</span>
+              <span>{formatPrice(total)}</span>
+            </div>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

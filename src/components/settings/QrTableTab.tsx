@@ -3,12 +3,7 @@ import { QrCode, Plus, Trash2, Printer } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
-
-type DiningTable = {
-  id: string;
-  number: number;
-  capacity: number;
-};
+import { DiningTable } from "@/types";
 
 export function QrTableTab() {
   const [tables, setTables] = useState<DiningTable[]>([]);

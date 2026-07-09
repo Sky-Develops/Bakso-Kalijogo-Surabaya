@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Image, MapPin, Save, Store } from "lucide-react";
+import { Image as ImageIcon, MapPin, Save, Store } from "lucide-react";
 import { StoreSettings } from "@/types";
 
 export function WebsiteConfigTab({ settings, onSave, isLoading }: { settings: StoreSettings | null, onSave: (p: Partial<StoreSettings>) => void, isLoading: boolean }) {
@@ -79,9 +79,12 @@ export function WebsiteConfigTab({ settings, onSave, isLoading }: { settings: St
             <div className="flex gap-3">
               <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900">
                 {formData.logoUrl ? (
-                  <img src={formData.logoUrl} alt="Logo restoran" className="h-full w-full object-cover" />
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={formData.logoUrl} alt="Logo restoran" className="h-full w-full object-cover" />
+                  </>
                 ) : (
-                  <Image className="h-6 w-6 text-neutral-400" />
+                  <ImageIcon className="h-6 w-6 text-neutral-400" />
                 )}
               </div>
               <div className="min-w-0 flex-1 space-y-2">

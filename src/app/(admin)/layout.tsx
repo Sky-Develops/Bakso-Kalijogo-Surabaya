@@ -45,8 +45,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   };
 
-  // Don't render shell on login / reset-password pages
-  if (pathname === "/admin/login" || pathname === "/admin/reset-password") {
+  // Don't render shell on login / reset-password / unauthorized pages
+  if (
+    pathname === "/admin/login" ||
+    pathname === "/admin/reset-password" ||
+    pathname === "/admin/unauthorized"
+  ) {
     return <>{children}</>;
   }
 

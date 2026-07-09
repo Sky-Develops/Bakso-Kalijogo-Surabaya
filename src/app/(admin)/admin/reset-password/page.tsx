@@ -27,8 +27,8 @@ export default function ResetPasswordPage() {
       setDone(true);
       toast.success("Kata sandi berhasil diperbarui!");
       setTimeout(() => router.push("/admin/login"), 2500);
-    } catch (err: any) {
-      toast.error(err.message || "Gagal memperbarui kata sandi. Link mungkin sudah kedaluwarsa.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Gagal memperbarui kata sandi. Link mungkin sudah kedaluwarsa.");
     } finally {
       setLoading(false);
     }

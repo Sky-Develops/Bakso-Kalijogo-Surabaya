@@ -85,7 +85,6 @@ export type Order = {
   createdAt: string;
 };
 
-<<<<<<< HEAD
 export type PrintTemplate = {
   header: string;          // Baris atas: nama toko, alamat, no WA
   subHeader: string;       // Sub-header: tagline / keterangan tambahan
@@ -136,7 +135,7 @@ export type StoreSettings = {
   createdAt?: string;
   updatedAt?: string;
 };
-=======
+
 export type TableStatus = "AVAILABLE" | "OCCUPIED" | "RESERVED";
 
 export type DiningTable = {
@@ -166,4 +165,3 @@ export type QrSession = {
   expiresAt: string;
   createdAt: string;
 };
->>>>>>> 55ef1d5 (update candra 2 juli)

@@ -17,6 +17,7 @@ import { useSettingsStore } from "@/store/settings-store";
 import { Order, OrderStatus, PaymentStatus } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 type StatusFilter = OrderStatus | "ALL";
 type DriverDraft = { driverName: string; driverPhone: string };
@@ -62,6 +63,13 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [driverDrafts, setDriverDrafts] = useState<Record<string, DriverDraft>>({});
+  const router = useRouter();
+
+  const handleOrderClick = (order: Order) => {
+    if (["PENDING", "CONFIRMED", "PREPARING", "DELIVERING"].includes(order.status)) {
+      router.push(`/admin/cashier?orderId=${order.id}`);
+    }
+  };
   const { settings, loadSettings } = useSettingsStore();
 
   const syncDriverDrafts = useCallback((nextOrders: Order[]) => {
@@ -93,6 +101,7 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     if (!settings) loadSettings();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadOrders();
   }, [loadOrders, settings, loadSettings]);
 
@@ -359,7 +368,11 @@ export default function AdminOrdersPage() {
               return (
                 <div
                   key={order.id}
-                  className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('button, select, input')) return;
+                    handleOrderClick(order);
+                  }}
+                  className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 cursor-pointer transition-colors hover:border-[#2D5016] dark:border-neutral-800 dark:bg-neutral-950"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -496,7 +509,11 @@ export default function AdminOrdersPage() {
                     return (
                       <tr
                         key={order.id}
-                        className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest('button, select, input')) return;
+                          handleOrderClick(order);
+                        }}
+                        className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
                       >
                         <td className="px-5 py-4 align-top">
                           <p className="text-xs font-bold text-neutral-900 dark:text-white">

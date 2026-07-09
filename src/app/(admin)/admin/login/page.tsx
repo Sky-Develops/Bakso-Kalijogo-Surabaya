@@ -111,8 +111,8 @@ export default function AdminLoginPage() {
         },
       });
       if (error) throw error;
-    } catch (err: any) {
-      toast.error(err.message || "Gagal login dengan Google. Pastikan Google OAuth sudah dikonfigurasi.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Gagal login dengan Google. Pastikan Google OAuth sudah dikonfigurasi.");
       setGoogleLoading(false);
     }
   };
@@ -127,8 +127,8 @@ export default function AdminLoginPage() {
       });
       if (error) throw error;
       setForgotSent(true);
-    } catch (err: any) {
-      toast.error(err.message || "Gagal mengirim email reset.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengirim email reset.");
     } finally {
       setForgotSending(false);
     }

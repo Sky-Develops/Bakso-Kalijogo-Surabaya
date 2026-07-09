@@ -41,7 +41,7 @@ export default function HomePage() {
     return () => {
       active = false;
     };
-  }, [syncProducts]);
+  }, [loadSettings, settings, syncProducts]);
 
   return (
     <>
@@ -52,7 +52,10 @@ export default function HomePage() {
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/12">
                   {websiteConfig?.logoUrl ? (
-                    <img src={websiteConfig.logoUrl} alt={settings?.restaurantName || "Logo restoran"} className="h-full w-full rounded-lg object-cover" />
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={websiteConfig.logoUrl} alt={settings?.restaurantName || "Logo restoran"} className="h-full w-full rounded-lg object-cover" />
+                    </>
                   ) : (
                     <Store className="h-5 w-5" />
                   )}

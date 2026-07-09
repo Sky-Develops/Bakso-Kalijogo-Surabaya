@@ -70,7 +70,7 @@ export default function CartPage() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [loadSettings, settings]);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-neutral-50 dark:bg-neutral-950">

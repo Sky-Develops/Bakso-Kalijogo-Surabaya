@@ -24,10 +24,14 @@ export default function RiwayatPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const savedPhone = window.localStorage.getItem(CUSTOMER_PHONE_KEY) ?? "";
-    setPhone(savedPhone);
-    setPhoneInput(savedPhone);
-    if (!savedPhone) setLoading(false);
+    const timeoutId = window.setTimeout(() => {
+      const savedPhone = window.localStorage.getItem(CUSTOMER_PHONE_KEY) ?? "";
+      setPhone(savedPhone);
+      setPhoneInput(savedPhone);
+      if (!savedPhone) setLoading(false);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   const loadOrders = useCallback(async (targetPhone: string) => {
@@ -47,7 +51,12 @@ export default function RiwayatPage() {
 
   useEffect(() => {
     if (!phone) return;
-    void loadOrders(phone);
+
+    const timeoutId = window.setTimeout(() => {
+      void loadOrders(phone);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [phone, loadOrders]);
 
   useEffect(() => {

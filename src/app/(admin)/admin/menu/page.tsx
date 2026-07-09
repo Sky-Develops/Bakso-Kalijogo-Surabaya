@@ -9,8 +9,10 @@ import {
   Search,
   ToggleLeft,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
+import { uploadMenuImage } from "@/lib/menu-image-upload";
 import {
   createMenuItem,
   deleteMenuItem,
@@ -116,6 +118,32 @@ export default function AdminMenuPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<MenuFormState>(EMPTY_FORM);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Ukuran maksimal 2MB");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Tipe file harus jpg/png/webp");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const url = await uploadMenuImage(file);
+      setForm((current) => ({ ...current, imageUrl: url }));
+      toast.success("Gambar berhasil diupload");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal upload gambar");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const loadMenu = useCallback(async () => {
     setLoading(true);
@@ -135,7 +163,11 @@ export default function AdminMenuPage() {
   }, []);
 
   useEffect(() => {
-    void loadMenu();
+    const timeoutId = window.setTimeout(() => {
+      void loadMenu();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadMenu]);
 
   const filteredProducts = useMemo(() => {
@@ -528,13 +560,34 @@ export default function AdminMenuPage() {
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold sm:col-span-2">
-                URL Foto Produk
-                <input
-                  value={form.imageUrl}
-                  onChange={(event) => setForm({ ...form, imageUrl: event.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className="rounded-xl border border-neutral-200 px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-primary/30 dark:border-neutral-700 dark:bg-neutral-900"
-                />
+                Foto Produk
+                <div className="flex gap-2 items-center">
+                  <input
+                    value={form.imageUrl}
+                    onChange={(event) => setForm({ ...form, imageUrl: event.target.value })}
+                    placeholder="https://images.unsplash.com/... (atau upload file)"
+                    className="flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-primary/30 dark:border-neutral-700 dark:bg-neutral-900"
+                  />
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept="image/jpeg, image/png, image/webp" 
+                      onChange={handleImageUpload}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                    <button type="button" disabled={uploadingImage} className="flex h-[38px] items-center gap-2 rounded-xl bg-neutral-100 px-3 py-2 text-sm font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 pointer-events-none">
+                      {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      Upload
+                    </button>
+                  </div>
+                </div>
+                {form.imageUrl && (
+                  <div className="mt-2">
+                    <p className="text-xs text-neutral-500 mb-1">Preview:</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={form.imageUrl} alt="Preview" className="h-20 w-20 object-cover rounded-xl border border-neutral-200 dark:border-neutral-800" />
+                  </div>
+                )}
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold">

@@ -34,7 +34,11 @@ function TableSuccessContent({ tableId }: { tableId: string }) {
   }, [orderId]);
 
   useEffect(() => {
-    void loadOrder();
+    const timeoutId = window.setTimeout(() => {
+      void loadOrder();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadOrder]);
 
   useEffect(() => {
