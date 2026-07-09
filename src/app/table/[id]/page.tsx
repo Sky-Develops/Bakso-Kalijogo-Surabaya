@@ -50,8 +50,8 @@ export default function TableMenuPage({ params }: { params: Promise<{ id: string
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 overflow-x-hidden pb-28">
-      <div className="mx-4 mt-4 rounded-2xl bg-[#2D5016] p-4 text-center text-white">
+    <div className="mx-auto max-w-6xl space-y-4 overflow-x-hidden pb-28 px-4 lg:px-6">
+      <div className="mx-auto mt-4 w-full max-w-5xl rounded-2xl bg-[#2D5016] p-4 text-center text-white lg:px-6">
         <p className="text-sm font-medium text-white/80">Anda di</p>
         <h1 className="mt-0.5 text-2xl font-extrabold">Meja {id}</h1>
         <p className="mt-1 text-xs text-white/70">
@@ -74,7 +74,7 @@ export default function TableMenuPage({ params }: { params: Promise<{ id: string
             <p className="font-semibold">Belum ada menu.</p>
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
             {menuProducts.map((product) => {
               const qty = getItemQty(product.id);
               const isSoldOut =
@@ -84,12 +84,12 @@ export default function TableMenuPage({ params }: { params: Promise<{ id: string
               return (
                 <div
                   key={product.id}
-                  className="flex gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
+                  className="flex min-h-[128px] gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
                 >
                   <ProductImage
                     src={product.imageUrl}
                     alt={product.imageAlt ?? product.name}
-                    className="h-20 w-20 flex-shrink-0 rounded-xl"
+                    className="h-20 w-20 flex-shrink-0 rounded-xl sm:h-24 sm:w-24 lg:h-28 lg:w-28"
                     sizes="80px"
                   />
                   <div className="min-w-0 flex-1">

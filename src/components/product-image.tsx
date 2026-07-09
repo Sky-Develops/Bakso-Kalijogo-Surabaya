@@ -37,7 +37,7 @@ export function ProductImage({
           fill
           priority={priority}
           sizes={sizes}
-          className={cn("object-cover", imageClassName)}
+          className={cn("object-contain object-center", imageClassName)}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-sm font-bold text-neutral-400">
